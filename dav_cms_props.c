@@ -34,6 +34,7 @@ dav_cms_db_connect (dav_cms_dbh * database)
 
   if (!database->dbh)
     {
+      /* try to connect */
       if (!database->dsn)
 	{
 	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
@@ -47,11 +48,11 @@ dav_cms_db_connect (dav_cms_dbh * database)
 			"[cms]: Database error '%s'",
 			PQerrorMessage (database->dbh));
 	  PQfinish (database->dbh);
-	  /* FIXME: set connection to NULL */
+	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
-      /* set module db handle from dbconn */
-      // = dbh;
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		    "[cms]: Connected to backend");
     }
   return CMS_OK;
 }
@@ -60,7 +61,7 @@ dav_cms_db_connect (dav_cms_dbh * database)
  * Close the connection to the database backend.
  * database. 
  * @param database a pointer to a \c dav_cms_dbh
- * @returns 0 on success or the appropriate error code in case
+ * @returns CMS_OK on success or the appropriate error code in case
  * of failure.
  */
 static dav_cms_status_t
@@ -75,47 +76,58 @@ dav_cms_db_disconnect (dav_cms_dbh * db)
 
   if (database->dbh)
     {
-      /* FIXME: PQfinish(database->dbh); ??? */
+      /*FIXME: will this be called too often ? */
+      PQfinish (database->dbh);
+      database->dbh = NULL;
     }
-  return 0;
+  return CMS_OK;
 }
 
 /**
  * Start a transaction in the backend database process.
  * @returns 0 on success or the appropriate error code.
  */
-
-/* FIXME: This should better be named 'dav_cms_ensure_transaction' */
 __inline__ static dav_cms_status_t
 dav_cms_ensure_transaction (dav_db * db)
 {
   PGresult *res;
 
-  if ((!db) || (!db->conn))
-    return CMS_FAIL;
-
-  if (!db->DTL)
+  /* assertions/preconditions */
+  if (!db)
     {
-      /* We are in a weired state  */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_start_transaction in weired transaction state");
+		    "[cms]: dav_cms_ensure_transacteion in weired context (NULL db).");
       return CMS_FAIL;
     }
-  
-  /* No backend transaction started yet ... */
-  if ((db->DTL) && (!db->PTL))
+  if (!db->DTL)
     {
-      db->PTL = ON;
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_ensure_transaction outside of DAV transaction.");
+      return CMS_FAIL;
+    }
+
+  if (!db->conn)
+    {
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_ensure_transaction without postgresql connection.");
+    return CMS_FAIL;
+    }
+
+
+ 
+  if (db->PTL == OFF)  /* No backend transaction started yet ... */
+    {
       res = PQexec (db->conn, "BEGIN");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
 	{
 	  PQclear (res);
 	  return CMS_FAIL;
 	}
+      db->PTL = ON;
       PQclear (res);
       return CMS_OK;
     }
-  else
+  else           /* backend is allready in transaction */
     return CMS_OK;
 }
 
@@ -129,9 +141,18 @@ dav_cms_commit (dav_db * db)
 {
   PGresult *res;
 
-  if ((!db) || (!db->conn))
+  if (!db)
     {
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_ensure_transacteion in weired context (NULL db).");
       return CMS_FAIL;
+    }
+
+  if (!db->conn)
+    {
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_ensure_transaction without postgresql connection.");
+      return CMS_FAIL;   
     }
 
   if (!db->DTL)
@@ -142,7 +163,7 @@ dav_cms_commit (dav_db * db)
       return CMS_FAIL;
     }
 
-  if ((db->DTL) && (!db->PTL))
+  if (db->PTL)  /* We have an open backend transaction that needs to be commited */  
     {
       res = PQexec (db->conn, "COMMIT");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
@@ -154,7 +175,7 @@ dav_cms_commit (dav_db * db)
       PQclear (res);
       return CMS_OK;
     }
-  else
+  else          /* no backend transaction open */
     return CMS_OK;
 }
 
@@ -259,8 +280,6 @@ dav_cms_db_close (dav_db * db)
 			  "Your operation might not be stored in the backend");
   /* FIXME: Just to keep compiler happy */
   if (0)
-    dav_cms_rollback (db);
-  if (0)
     dav_cms_db_disconnect (NULL);
   db->DTL = OFF;
 }
@@ -289,7 +308,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
    * prefixes.
    */
   ntuples = 0;
-  qlen = 0;
+  qlen    = 0;
 
   tlen = strlen (db->resource->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
@@ -297,7 +316,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   turi = buffer;
   qlen += tlen;
 
-  qtempl = "SELECT namespace FROM facts WHERE uri = '%s'";
+  qtempl = "SELECT DISTINCT namespace FROM facts WHERE uri = '%s'";
   qlen += strlen (qtempl);
   query = (char *) apr_palloc (db->pool, qlen);
   snprintf (query, qlen, qtempl, turi);
@@ -316,8 +335,10 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
 
       namespace =
 	apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
-      prefix = apr_psprintf (db->pool, "CMS%d", i);
-      //      dav_xmlns_add(xi, prefix, namespace);
+      /* We don't care about the prefix:
+       * prefix = apr_psprintf (db->pool, "CMS%d", i);
+       * dav_xmlns_add(xi, prefix, namespace);
+       */
       (void) dav_xmlns_add_uri (xi, namespace);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
@@ -372,7 +393,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
     }
 
   ntuples = 0;
-  qlen = 0;
+  qlen    = 0;
 
   tlen = strlen (db->resource->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
@@ -416,16 +437,14 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
 
       uri = PQgetvalue (res, i, 1);
       tag = PQgetvalue (res, i, 2);
-      //      prefix = (char *)dav_xmlns_get_prefix(xi, uri);
-      prefix = dav_xmlns_add_uri (xi, uri);
-      // prefix = (char *) apr_hash_get(xi->uri_prefix, uri, -1);
-      //prefix = prefix ? prefix : "ZEIT";
+      //prefix = (char *)dav_xmlns_get_prefix(xi, uri);
+      prefix = (char *) dav_xmlns_add_uri (xi, uri);
       buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
 			     prefix,
 			     tag, PQgetvalue (res, i, 3), prefix, tag);
       apr_text_append (db->pool, phdr, buffer);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[URI: '%s' Prefix '%s'] %s\n", uri, prefix, buffer);
+		    "[URI: '%s 'Prefix '%s'] %s\n", uri, prefix, buffer);
     }
   PQclear (res);
   *found = ntuples;
@@ -444,9 +463,6 @@ dav_error *
 dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 		  const apr_xml_elem * elem, dav_namespace_map * mapping)
 {
-  /* FIXME: we need to check that property with the given name
-   * and namespace doesn't allready exist for this URI,
-   */
 
   /* FIXME: the following algorythm needs to be implemented:
    * 
@@ -456,6 +472,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
    *    possibly overriding an older value (stored proc.).
    * -# If not, dispatch to the backend providers store function.
    */
+  
   PGresult *res;
   char *buffer;
   char *qtempl, *query;
@@ -465,13 +482,26 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
   size_t tlen;
   size_t qlen;
   size_t valsize = 0;
-
+  
+  /* Fastpath: Ignore requests for DAV-properties */
+  if (! strcmp (name->ns, "DAV:"))
+  {
+    return NULL;
+  }
+ 
+  /* NOTE: mod_dav should check for empty namespace itself */
+  if (name->ns[0] == 0)
+    {
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: NULL namespace not allowed.");
+    }
+  
   if (!dbh)
     {
       return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			    "Fatal Error: no database connection to store property.");
     }
-
+  
   /* convert the xml-branch value to its text representation */
   apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
 		   (const char **) &value, &valsize);
@@ -484,7 +514,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
    */
   qlen = 0;
 
-  uri = (char *) db->resource->uri;
+  uri  = (char *) db->resource->uri;
   tlen = strlen (uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, uri, tlen);
@@ -492,12 +522,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
   qlen += tlen;
 
   tlen = strlen (name->ns);
-  /* FIXME: mod_dav should check for empty namespace itself */
-  if (name->ns[0] == 0)
-    {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			    "Fatal Error: NULL namespace not allowed.");
-    }
+ 
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, name->ns, tlen);
   tns = buffer;
@@ -695,6 +720,10 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 	  dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			 "Fatal Error: datbase error during  property storage.");
 	}
+      
+      /* return the first property */
+      pname->ns = PQgetvalue (db->cursor, db->pos, 0);
+      pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
 
       /* SIDE NOTE: is this planed at all? Different properties
        * per URI.

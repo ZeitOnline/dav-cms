@@ -44,10 +44,11 @@ struct dav_db {
 
 
 extern  const dav_hooks_propdb dav_cms_hooks_propdb;
-
+  
   /*
    * Prototypes for the dav_cms property database hooks 
    */
+
 dav_error *
 dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb);
     

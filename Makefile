@@ -1,6 +1,6 @@
 # APXS = @apxs@
-APXS = /usr/local/apache2/bin/apxs
-APR_CONFIG = apr-config
+APXS       = /usr/local/apache2/bin/apxs
+APR_CONFIG = /usr/local/apache2/bin/apr-config
 PG_CONFIG  = pg_config
 
 SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c

@@ -73,7 +73,7 @@ extern "C" {
    */
   typedef struct {
     int magic;
-    ; /* void for now */
+    /* void for now */
   } dav_cms_dir_conf;
   
 
