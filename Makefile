@@ -25,7 +25,7 @@ install: install-modules
 
 #   cleanup
 clean:
-	-rm -f mod_dav_cms.o mod_dav_cms.lo mod_dav_cms.slo mod_dav_cms.la 
+	-rm -f mod_dav_cms.o mod_dav_cms.lo mod_dav_cms.slo mod_dav_cms.la dav_cms_props.o 
 
 #   simple test
 test: reload
@@ -44,3 +44,6 @@ restart:
 stop:
 	$(APACHECTL) stop
 
+#  Documentation with doxygen
+doc: 
+	doxygen
