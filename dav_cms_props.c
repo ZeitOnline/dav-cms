@@ -760,6 +760,7 @@ dav_cms_db_apply_rollback (dav_db * db, dav_deadprop_rollback * rollback)
 {
   dav_cms_rollback(db);
   db->DTL = OFF;
+  return NULL;
 }
 
 

@@ -7,7 +7,7 @@ SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c
 
 HEADERS  = dav_cms_monitor.h dav_cms_props.h mod_dav_cms.h
 
-INCLUDES = `$(APR_CONFIG) --includedir` \
+INCLUDES = `$(APR_CONFIG) --includes` \
            -I`$(PG_CONFIG) --includedir`
 
 LDFLAGS  = `$(APR_CONFIG) --link-ld --libs` \
