@@ -32,7 +32,7 @@
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
 
-static volatile char ident_string[] = "$id";
+static volatile char ident_string[] = "$Id$";
 
 /* FIXME: _no_ global/statics allowed! */
 /* FIXME: This _will_ break terribly if used
