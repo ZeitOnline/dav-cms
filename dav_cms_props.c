@@ -127,7 +127,7 @@ dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pd
   /* really open database connection */
   if(dav_cms_db_connect(dbh) != CMS_OK)
     return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
-		  "Error connection to property database");
+		  "Error connecting to property database");
 
 
   db = (dav_db *)apr_pcalloc(p, sizeof(*db));
@@ -143,7 +143,7 @@ dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pd
    */
   if (dav_cms_start_transaction() != CMS_OK)
     return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
-		  "Error establishing transaction in property database");
+		  "Error entering transaction context in property database");
 
 
 #ifndef NDEBUG
@@ -198,14 +198,14 @@ dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
   qlen    = 0;
   
   tlen   = strlen(db->resource->uri);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, db->resource->uri, tlen);
-  turi   = buffer;      
+  turi   = buffer;
   qlen  += tlen;
   
   qtempl = "SELECT namespace FROM facts WHERE uri = '%s'"; 
   qlen  += strlen(qtempl);
-  query = (char *) ap_palloc(db->pool, qlen);
+  query = (char *) apr_palloc(db->pool, qlen);
   snprintf(query, qlen, qtempl, turi);
   
   /* execute the database query and check return value */
@@ -256,6 +256,11 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
     }
   
   /* FIXME: why do we have to call this ourself? */
+  /* TEST:  It would be convenient if we could call this
+   * only once for all properties of _all_ resources within
+   * one request (read: a propget/depth=1 on a collection should
+   * trigger this only once.
+   */
   err = dav_cms_db_define_namespaces(db, xi);
   if(err) return err;
 
@@ -263,19 +268,19 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
   qlen    = 0;
   
   tlen   = strlen(db->resource->uri);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, db->resource->uri, tlen);
   turi   = buffer;      
   qlen  += tlen;
 
   tlen   = strlen(name->ns);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, name->ns, tlen);
   tns    = buffer;
   qlen  += tlen;
 
   tlen   = strlen(name->name);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, name->name, tlen);
   tname  = buffer; 
   qlen  += tlen;
@@ -283,7 +288,7 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
   qtempl = "SELECT uri, namespace, name, value FROM facts "
     "WHERE uri = '%s' AND namespace ='%s' AND name = '%s'"; 
   qlen  += strlen(qtempl);
-  query = (char *) ap_palloc(db->pool, qlen);
+  query = (char *) apr_palloc(db->pool, qlen);
   snprintf(query, qlen, qtempl, turi, tns, tname);
       
 
@@ -377,7 +382,7 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
       
       uri    = (char *) db->resource->uri;
       tlen   = strlen(uri);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, uri, tlen);
       turi   = buffer;      
       qlen  += tlen;
@@ -389,26 +394,26 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
 	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			       "Fatal Error: NULL namespace not allowed.");
 	}
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, name->ns, tlen);
       tns    = buffer;
       qlen  += tlen;
 
       tlen   = strlen(name->name);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, name->name, tlen);
       tname  = buffer; 
       qlen  += tlen;
 
       tlen   = strlen(value);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, value, tlen);
       tval   = buffer;
       qlen  += tlen;
       
       qtempl = "SELECT assert('%s', '%s', '%s', '%s')";
       qlen  += strlen(qtempl);
-      query = (char *) ap_palloc(db->pool, qlen);
+      query = (char *) apr_palloc(db->pool, qlen);
       snprintf(query, qlen, qtempl, turi, tns, tname, tval);
       
       /* execute the database query and check return value */
@@ -446,26 +451,26 @@ dav_cms_db_remove(dav_db *db, const dav_prop_name *name)
 
       uri    = (char *) db->resource->uri;
       tlen   = strlen(uri);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, uri, tlen);
       turi   = buffer;      
       qlen  += tlen;
 
       tlen   = strlen(name->ns);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, name->ns, tlen);
       tns    = buffer;
       qlen  += tlen;
 
       tlen   = strlen(name->name);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, name->name, tlen);
       tname  = buffer; 
       qlen  += tlen;
       
       qtempl = "DELETE FROM facts WHERE uri = '%s' AND  namespace = '%s' AND  name = '%s'";
       qlen  += strlen(qtempl);
-      query = (char *) ap_palloc(db->pool, qlen);
+      query = (char *) apr_palloc(db->pool, qlen);
       snprintf(query, qlen, qtempl, turi, tns, tname);
 
       res   = PQexec(dbh->dbh, query);
@@ -493,19 +498,19 @@ dav_cms_db_exists(dav_db *db, const dav_prop_name *name)
   qlen   = 0;
   
   tlen   = strlen(db->resource->uri);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, db->resource->uri, tlen);
   turi   = buffer;      
   qlen  += tlen;
 
   tlen   = strlen(name->ns);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, name->ns, tlen);
   tns    = buffer;
   qlen  += tlen;
 
   tlen   = strlen(name->name);
-  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
   tlen   = PQescapeString(buffer, name->name, tlen);
   tname  = buffer; 
   qlen  += tlen;
@@ -513,7 +518,7 @@ dav_cms_db_exists(dav_db *db, const dav_prop_name *name)
   qtempl = "SELECT * FROM facts "
     "WHERE uri = '%s' AND namespace ='%s' AND 'name = '%s'"; 
   qlen  += strlen(qtempl);
-  query = (char *) ap_palloc(db->pool, qlen);
+  query = (char *) apr_palloc(db->pool, qlen);
   snprintf(query, qlen, qtempl, turi, tns, tname);
       
 
@@ -566,7 +571,7 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
       qlen   = 0;
 
       tlen   = strlen(db->resource->uri);
-      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, db->resource->uri, tlen);
       turi   = buffer;      
       qlen  += tlen;
@@ -574,7 +579,7 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
       qtempl = "SELECT namespace, name, value FROM facts "
 	       "WHERE uri = '%s'"; 
       qlen  += strlen(qtempl);
-      query = (char *) ap_palloc(db->pool, qlen);
+      query = (char *) apr_palloc(db->pool, qlen);
       snprintf(query, qlen, qtempl, turi);
       
 

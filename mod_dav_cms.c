@@ -30,6 +30,7 @@
 #include <postgresql/libpq-fe.h>
 #include "mod_dav_cms.h"
 #include "dav_cms_props.h"
+#include "dav_cms_monitor.h"
 
 /* FIXME: _no_ global/statics allowed! */
 /* FIXME: This _will_ break terribly if used
@@ -280,7 +281,7 @@ static void dav_cms_register_hooks(apr_pool_t *p)
   dav_cms_patch_provider((char *)NULL);
   /* Apache2 hooks we provide */
   ap_hook_post_config(dav_cms_init, NULL, NULL, APR_HOOK_MIDDLE);
-
+  ap_hook_log_transaction(dav_cms_monitor ,NULL, NULL, APR_HOOK_MIDDLE);
   /* Apache2 mod_dav hooks we provide */
 
   dav_register_provider(p, DAV_CMS_PROVIDER, &dav_cms_provider);
