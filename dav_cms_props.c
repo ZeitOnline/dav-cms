@@ -1,7 +1,26 @@
-/* Filespec: $Id$ */
 
 /**
- * @package dav_cms
+ *
+ * Filespec: $Id$
+ * 
+ * Filename:      dav_cms_props.c
+ * Author:        Ralf Mattes<rm@fabula.de>
+ *
+ * 
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ *
  */
 
 #include <httpd.h>
@@ -29,6 +48,8 @@
 static dav_cms_status_t
 dav_cms_db_connect (dav_cms_dbh * database)
 {
+  FILE *dbtrace = NULL;
+
   if (!database)
     return CMS_FAIL;
 
@@ -51,8 +72,26 @@ dav_cms_db_connect (dav_cms_dbh * database)
 	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
+
+      if (dbtrace = fopen ("/tmp/mod-dav-cms-db.trace", "a"))
+	{
+	  PQtrace (database->dbh, dbtrace);
+	}
+
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[cms]: Connected to backend");
+		    "[cms]: Connected to backend with the following options:" );
+      {
+	PQconninfoOption *info, *i;
+
+	info = i = PQconndefaults ();
+	while (info->keyword)
+	  {
+	    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+			  "\t'%s'\t=\t'%s'", (info->keyword), (info->val));
+	    info++;
+	  }
+	PQconninfoFree (i);
+      }
     }
   return CMS_OK;
 }
@@ -76,9 +115,11 @@ dav_cms_db_disconnect (dav_cms_dbh * db)
 
   if (database->dbh)
     {
-      /*FIXME: will this be called too often ? */
-      PQfinish (database->dbh);
-      database->dbh = NULL;
+      /*FIXME: will this be called too often ? 
+       *  PQfinish (database->dbh);
+       *  database->dbh = NULL;
+       */
+      ;
     }
   return CMS_OK;
 }
@@ -117,8 +158,8 @@ dav_cms_ensure_transaction (dav_db * db)
  
   if (db->PTL == OFF)  /* No backend transaction started yet ... */
     {
-      res = PQexec (db->conn, "BEGIN");
-      if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
+      res = PQexec (db->conn, "BEGIN -- property changes");
+      if (!res || (PQresultStatus (res) != PGRES_COMMAND_OK))
 	{
 	  PQclear (res);
 	  return CMS_FAIL;
@@ -165,7 +206,7 @@ dav_cms_commit (dav_db * db)
 
   if (db->PTL)  /* We have an open backend transaction that needs to be commited */  
     {
-      res = PQexec (db->conn, "COMMIT");
+      res = PQexec (db->conn, "COMMIT -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
 	{
 	  db->PTL = OFF;
@@ -204,7 +245,7 @@ dav_cms_rollback (dav_db * db)
 
   if ((db->DTL) && (!db->PTL))
     {
-      res = PQexec (dbh->dbh, "ROLLBACK");
+      res = PQexec (dbh->dbh, "ROLLBACK -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
 	{
 	  PQclear (res);
@@ -249,10 +290,12 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
    */
   db->DTL = ON;
  
-  if (dav_cms_ensure_transaction (db) != CMS_OK)
-    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
-			  "Error entering transaction context in property database");
-
+  /* FIXME: we only need to enshure transactions for modifying access to props
+   * TEST: removed
+   if (dav_cms_ensure_transaction (db) != CMS_OK)
+   return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
+   "Error entering transaction context in property database");
+  ****/
 
 #ifndef NDEBUG
   ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
@@ -501,6 +544,12 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
       return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			    "Fatal Error: no database connection to store property.");
     }
+
+  /* Storage needs expicit backnd transactions */
+  if (dav_cms_ensure_transaction (db) != CMS_OK)
+    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			  "Error entering transaction context in property database");
+
   
   /* convert the xml-branch value to its text representation */
   apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
@@ -565,6 +614,11 @@ dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
    * We also need to do better error checking.
    */
 
+  /* Removal needs expicit backnd transactions */
+  if (dav_cms_ensure_transaction (db) != CMS_OK)
+    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			  "Error entering transaction context in property database");
+  
   if (dbh)
     {
       PGresult *res;

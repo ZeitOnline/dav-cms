@@ -1,6 +1,7 @@
 # APXS = @apxs@
 APXS       = /usr/local/apache2/bin/apxs
 APR_CONFIG = /usr/local/apache2/bin/apr-config
+APACHECTL  = /usr/local/apache2/bin/apachectl
 PG_CONFIG  = pg_config
 
 SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c
@@ -19,4 +20,11 @@ all: $(SRC) $(HEADERS)
 	$(APXS) -I$(INCLUDES) $(LDFLAGS) -c $(SRC)
 
 install: .libs/mod_dav_cms.so
-	install -m 600 -o www-data .libs/mod_dav_cms.so $(DESTDIR) 
+	$(APXS) -i  -n 'mod_dav_cms' .libs/mod_dav_cms.so  
+
+restart:
+	$(APACHECTL) stop
+	$(APACHECTL) start
+
+# 
+# install -m 600 -o www-data .libs/mod_dav_cms.so $(DESTDIR) 

@@ -1,6 +1,23 @@
 /**
- * @package dav_cms
  * Filespec: $Id$
+ *
+ * Filename:      mod_dav_cms.c
+ * Author:        <rm@fabula.de> 
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * 
  */
 
 /* 
@@ -32,14 +49,14 @@
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
 
-   static volatile char ident_string[] = "$Id$";
+static volatile char ident_string[] = "$Id$";
 
 /* FIXME: _no_ global/statics allowed! */
 /* FIXME: This _will_ break terribly if used
  * in threaded code!
  */
 
-   dav_cms_dbh *dbh;
+dav_cms_dbh *dbh;
 
 /* FIXME: needs to be visible to 'dav_cms_props.c'*/
    const dav_provider *dav_backend_provider;
@@ -95,16 +112,19 @@
    static apr_status_t
    dav_cms_child_destroy(void *ctxt)
    {
-   #ifndef NDEBUG
+#     ifndef NDEBUG
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Cleaning up resources\n");
-   #endif
-   
+#     endif
+
       if(dbh)
       {
          if(dbh->dbh)
             PQfinish(dbh->dbh);
          dbh->dbh = NULL;
          dbh = NULL;
+#        ifndef NDEBUG
+	 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closed database connection\n");
+#        endif
       }
       return APR_SUCCESS;
    }
@@ -140,12 +160,12 @@
    /* FIXME: how do i get my hands on 'conf' */
       conf = (dav_cms_server_conf *)ap_get_module_config(server->module_config, &dav_cms_module);
       if(!conf)
-         printf("No configuration data found\n");
+	printf("No configuration data found\n");
    
    /* Allocate our database connection struct from the child pool ... */
    
       if(!dbh)
-         dbh = (dav_cms_dbh *)apr_palloc(pchild, sizeof(dav_cms_dbh));
+	dbh = (dav_cms_dbh *)apr_palloc(pchild, sizeof(dav_cms_dbh));
    
       if(dbh)
       {
@@ -158,10 +178,10 @@
          exit(255);
       }
    
-   /* ... and register a cleanup */
+      /* ... and register a cleanup */
       apr_pool_cleanup_register(pchild, NULL, 
-         dav_cms_child_destroy, 
-         dav_cms_child_destroy);
+				dav_cms_child_destroy, 
+				dav_cms_child_destroy);
       return OK;
    }
 
