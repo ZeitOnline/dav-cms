@@ -13,6 +13,9 @@
 #include "mod_dav_cms.h"
 #include "dav_cms_props.h"
 
+
+//########################################################################[ UTILS ]##
+
 /**
  * Test whether we allready have an open connection to the
  * database. If not, attempt to connect.
@@ -109,18 +112,21 @@ dav_cms_rollback(void)
   return CMS_OK;
 }
 
+
+//##########################################################[ DAV PROPS CALLBACKS ]##
+
 dav_error *
 dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb)
 {
   dav_db           *db;
   
   if(!dbh)
-    dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
 		  "Fatal Error: no database connection set up.");
 
   /* really open database connection */
   if(dav_cms_db_connect(dbh) != CMS_OK)
-    dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
 		  "Error connection to property database");
 
 
@@ -136,7 +142,7 @@ dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pd
    * postgres backend or begin a transaction on an open connection.
    */
   if (dav_cms_start_transaction() != CMS_OK)
-    dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
 		  "Error establishing transaction in property database");
 
 
@@ -159,7 +165,7 @@ dav_cms_db_close(dav_db *db)
   /*FIXME: is this a good place to commit? */
  if (dav_cms_commit() != CMS_OK)
    /* FIXME: how to raise an error ? */
-   dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+   (void) dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 		 "Error commiting transaction in property database\n"
 		 "Your operation might not be stored in the backend");
  /* FIXME: Just to keep compiler happy*/
@@ -217,6 +223,7 @@ dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
       namespace = apr_pstrdup(xi->pool, (const char *) PQgetvalue(res, i, 0));
       prefix    = apr_psprintf(db->pool, "CMS%d", i);
       dav_xmlns_add(xi, prefix, namespace);
+      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[Adding ns '%s' as '%s']\n", namespace, prefix);
     }
   dav_xmlns_add(xi, "ZEIT", "http://namespaces.zeit.de/blub");
   PQclear(res);
@@ -229,98 +236,90 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
 			apr_text_header *phdr, 
 			int *found)
 {
+  dav_error  *err;
   PGresult   *res;  
   char       *buffer, *qtempl, *query;
   char       *turi, *tns, *tname;
   size_t      tlen, qlen;
   int         ntuples, i;
 
-  
-
 #ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-	       "[cms]: Looking for `%s' : `%s'\n", name->ns, name->name);
+	       "[CMS:DEBUG]\tLooking for `%s' : `%s'\n", name->ns, name->name);
 #endif
 
   if(!db->conn) 
     {
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "CLOSED DATABASE\n");
       return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			   "[FATAL] Trying to access closed database.");
+			   "[CMS:FATAL]\tTrying to access closed database.");
     }
   
-    ntuples = 0;
-    qlen    = 0;
+  /* FIXME: why do we have to call this ourself? */
+  err = dav_cms_db_define_namespaces(db, xi);
+  if(err) return err;
+
+  ntuples = 0;
+  qlen    = 0;
   
-    tlen   = strlen(db->resource->uri);
-    buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
-    tlen   = PQescapeString(buffer, db->resource->uri, tlen);
-    turi   = buffer;      
-    qlen  += tlen;
+  tlen   = strlen(db->resource->uri);
+  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  tlen   = PQescapeString(buffer, db->resource->uri, tlen);
+  turi   = buffer;      
+  qlen  += tlen;
 
-    tlen   = strlen(name->ns);
-    buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
-    tlen   = PQescapeString(buffer, name->ns, tlen);
-    tns    = buffer;
-    qlen  += tlen;
+  tlen   = strlen(name->ns);
+  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  tlen   = PQescapeString(buffer, name->ns, tlen);
+  tns    = buffer;
+  qlen  += tlen;
 
-    tlen   = strlen(name->name);
-    buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
-    tlen   = PQescapeString(buffer, name->name, tlen);
-    tname  = buffer; 
-    qlen  += tlen;
+  tlen   = strlen(name->name);
+  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  tlen   = PQescapeString(buffer, name->name, tlen);
+  tname  = buffer; 
+  qlen  += tlen;
 
-    qtempl = "SELECT uri, namespace, name, value FROM attributes "
-      "WHERE uri = '%s' AND namespace ='%s' AND name = '%s'"; 
-    qlen  += strlen(qtempl);
-    query = (char *) ap_palloc(db->pool, qlen);
-    snprintf(query, qlen, qtempl, turi, tns, tname);
+  qtempl = "SELECT uri, namespace, name, value FROM facts "
+    "WHERE uri = '%s' AND namespace ='%s' AND name = '%s'"; 
+  qlen  += strlen(qtempl);
+  query = (char *) ap_palloc(db->pool, qlen);
+  snprintf(query, qlen, qtempl, turi, tns, tname);
       
 
-    /* execute the database query and check return value */
-    res   = PQexec(db->conn, query);
-    if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
+  /* execute the database query and check return value */
+  res   = PQexec(db->conn, query);
+  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
     {
       return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			   "Fatal Error: datbase error during  property storage.");	  
     }
-    ntuples = PQntuples(res);
+  ntuples = PQntuples(res);
+  
+  
+  /* Iterate over the result and append the data to the output string */
+  for(i = 0; i < ntuples; i++)
     {
-      apr_hash_index_t *hi = apr_hash_first(xi->pool, xi->prefix_uri);
-      for (; hi != NULL; hi = apr_hash_next(hi)) {
-        const void *prefix;
-        void *uri;
-        const char *s;
-
-        apr_hash_this(hi, &prefix, NULL, &uri);
-
-        s = apr_psprintf(xi->pool, " xmlns:%s=\"%s\"",
-                         (const char *)prefix, (const char *)uri);
-        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[[%s]]\n", s);
-      }
-      
-  }
-    /* Iterate over the result and append the data to the output string */
-    for(i = 0; i < ntuples; i++)
-      {
-	char *prefix, *uri, *tag;
+      char *prefix, *uri, *tag;
 	
-	uri = PQgetvalue(res, i, 1);
-	tag = PQgetvalue(res, i, 2);
-	prefix = (char *)dav_xmlns_get_prefix(xi, uri);
-	//prefix = prefix ? prefix : "ZEIT";
-	buffer = apr_psprintf(db->pool,"<%s:%s>%s</%s:%s>",
-			      prefix,
-			      tag,
-			      PQgetvalue(res, i, 3),
-			      prefix,
-			      tag);
-	apr_text_append(db->pool, phdr, buffer);
-	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[URI: %s Prefix %s]\n", uri, prefix);
-      }
-    PQclear(res);
-    *found = ntuples;
-    return NULL;
+      uri = PQgetvalue(res, i, 1);
+      tag = PQgetvalue(res, i, 2);
+      prefix = (char *)dav_xmlns_get_prefix(xi, uri);
+      prefix = (char *) apr_hash_get(xi->uri_prefix, uri, -1);
+      //prefix = prefix ? prefix : "ZEIT";
+      buffer = apr_psprintf(db->pool,"<%s:%s>%s</%s:%s>",
+			    prefix,
+			    tag,
+			    PQgetvalue(res, i, 3),
+			    prefix,
+			    tag);
+      apr_text_append(db->pool, phdr, buffer);
+      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+		   "[URI: '%s' Prefix '%s']\n", uri, prefix);
+    }
+  PQclear(res);
+  *found = ntuples;
+  return NULL;
 }
 
 dav_error *
@@ -360,7 +359,7 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
       
       if(!dbh)
 	{
-	  dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			"Fatal Error: no database connection to store property.");	  
 	}
       
@@ -384,6 +383,12 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
       qlen  += tlen;
 
       tlen   = strlen(name->ns);
+      /* FIXME: mod_dav should check for empty namespace itself */
+      if(name->ns[0] == 0)
+	{
+	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			       "Fatal Error: NULL namespace not allowed.");
+	}
       buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
       tlen   = PQescapeString(buffer, name->ns, tlen);
       tns    = buffer;
@@ -401,14 +406,14 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
       tval   = buffer;
       qlen  += tlen;
       
-      qtempl = "INSERT INTO attributes (uri, namespace, name, value) VALUES ('%s', '%s', '%s', '%s')";
+      qtempl = "SELECT assert('%s', '%s', '%s', '%s')";
       qlen  += strlen(qtempl);
       query = (char *) ap_palloc(db->pool, qlen);
       snprintf(query, qlen, qtempl, turi, tns, tname, tval);
       
       /* execute the database query and check return value */
       res   = PQexec(dbh->dbh, query);
-      if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+      if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 	  PQclear(res);
 	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,

@@ -106,6 +106,7 @@ extern "C" {
   extern  const dav_provider *dav_backend_provider;
   extern        dav_cms_dbh  *dbh;
 
+
 #ifdef __cplusplus
 }
 #endif
