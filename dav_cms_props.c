@@ -115,7 +115,7 @@ dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pd
 
   if(!dbh)
     dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
-		  "Fatal Error: no database connection set up");
+		  "Fatal Error: no database connection set up.");
 
   /* really open database connection */
   if(dav_cms_db_connect(dbh) != CMS_OK)
@@ -238,6 +238,9 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
 	      const apr_xml_elem *elem,
 	      dav_namespace_map *mapping)
 {
+  /* FIXME: we need to check that property with the given name
+   * and namespace doesn't allready exist for this URI,
+   */
 
   /* FIXME: the following algorythm needs to be implemented:
    * 
@@ -247,33 +250,34 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
    *    possibly overriding an older value (stored proc.).
    * -# If not, dispatch to the backend providers store function.
    */
-  char        *value   = NULL;
-  apr_size_t   valsize = 0;
-
-  apr_xml_to_text(db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
-		  (const char **) &value, &valsize);
-  if(value)
-    value[valsize] = (char) 0;
-#ifndef NDEBUG
-  ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, 
-	       "[cms]: Storing '%s : %s'\n\t%s", name->ns, name->name, value);
-#endif
-
-  /* FIXME: store the value in the database */
-  // return (*dav_backend_provider->propdb->store)(db, name, elem, mapping);
-
-  if(dbh)
-    {
       PGresult *res;
       char     *buffer;
       char     *qtempl, *query;
       char     *uri;
+      char     *value;
       char     *turi, *tns, *tname, *tval; 
       size_t    tlen;
       size_t    qlen;
+      size_t    valsize = 0;
       
+      if(!dbh)
+	{
+	  dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			"Fatal Error: no database connection to store property.");	  
+	}
+      
+      /* convert the xml-branch value to its text representation */
+      apr_xml_to_text(db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
+		      (const char **) &value, &valsize);
+      if(value)
+	value[valsize] = (char) 0;
+      
+      /* From here on we collect the neccessary tokens, sql-escape them
+       * and record the token length to calculate the maximum length of 
+       * the query string.
+       */
       qlen   = 0;
-
+      
       uri    = (char *) db->resource->uri;
       tlen   = strlen(uri);
       buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
@@ -303,14 +307,67 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
       qlen  += strlen(qtempl);
       query = (char *) ap_palloc(db->pool, qlen);
       snprintf(query, qlen, qtempl, turi, tns, tname, tval);
+      
+      /* execute the database query and check return value */
       res   = PQexec(dbh->dbh, query);
-    }
-  return NULL;
+      if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+	  PQclear(res);
+	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			       "Fatal Error: datbase error during  property storage.");	  
+	}
+      PQclear(res);
+      return NULL;
 }
 
 dav_error *
 dav_cms_db_remove(dav_db *db, const dav_prop_name *name)
 {
+  /* FIXME: how should we react if res.count <> 1? 
+   * We also need to do better error checking.
+   */
+
+  if(dbh)
+    {
+      PGresult *res;
+      char     *buffer;
+      char     *qtempl, *query;
+      char     *uri;
+
+      char     *turi, *tns, *tname; 
+      size_t    tlen;
+      size_t    qlen;
+      
+      qlen   = 0;
+
+      uri    = (char *) db->resource->uri;
+      tlen   = strlen(uri);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, uri, tlen);
+      turi   = buffer;      
+      qlen  += tlen;
+
+      tlen   = strlen(name->ns);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, name->ns, tlen);
+      tns    = buffer;
+      qlen  += tlen;
+
+      tlen   = strlen(name->name);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, name->name, tlen);
+      tname  = buffer; 
+      qlen  += tlen;
+      
+      qtempl = "DELETE FROM attributes WHERE uri = '%s' AND  namespace = '%s' AND  name = '%s'";
+      qlen  += strlen(qtempl);
+      query = (char *) ap_palloc(db->pool, qlen);
+      snprintf(query, qlen, qtempl, turi, tns, tname);
+
+      res   = PQexec(dbh->dbh, query);
+      /*FIXME: errorchecking here */
+      PQclear(res);
+    }
   return NULL;
 }
 
@@ -343,15 +400,69 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
    */
   if (db->props == NULL)
     {
+      PGresult *res;
+      char     *buffer, *qtempl, *query;
+      char     *turi, *tns, *tname;
+      size_t    tlen, qlen;
+      int       i, nFields;
+      
+      if(!dbh)
+	return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			"Fatal Error: not connected to database.");	  
+
       db->props = apr_hash_make(db->pool);
-      /* FIXME: sample data only! In realiter we would send
-       * an SQL query to the backend to get all ns/properties
-       * for this URI.
-       * SIDE NOTE: is this planed at all? Different properties
+
+      qlen   = 0;
+
+      tlen   = strlen(db->resource->uri);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, db->resource->uri, tlen);
+      turi   = buffer;      
+      qlen  += tlen;
+
+      /*
+      tlen   = strlen(pname->ns);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, pname->ns, tlen);
+      tns    = buffer;
+      qlen  += tlen;
+      
+      tlen   = strlen(pname->name);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, pname->name, tlen);
+      tname  = buffer;      
+      qlen  += tlen;
+      */
+
+      qtempl = "SELECT name, value FROM attributes WHERE "
+	"uri = '%s'"; // AND namespace = '%s' AND name = '%s'";
+      qlen  += strlen(qtempl);
+      query = (char *) ap_palloc(db->pool, qlen);
+      snprintf(query, qlen, qtempl, turi);
+      
+      /*FIXME*/ tname = tns;
+
+      /* execute the database query and check return value */
+      res   = PQexec(dbh->dbh, query);
+      if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+	  dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			"Fatal Error: datbase error during  property storage.");	  
+	}
+
+      /* SIDE NOTE: is this planed at all? Different properties
        * per URI.
        */
-      apr_hash_set(db->props, "test", APR_HASH_KEY_STRING, "PropA");
-      apr_hash_set(db->props, "test2", APR_HASH_KEY_STRING, "PropB");
+      
+      nFields = PQnfields(res);
+      for(i = 0; i <= nFields; i++)
+	{
+	  apr_hash_set(db->props, 
+		       PQgetvalue(res, i, 0), 
+		       APR_HASH_KEY_STRING, 
+		       PQgetvalue(res, i, 0));
+	}
+      PQclear(res);
     }
   /* now we start iterating over the entries in the property table */
   db->hi = apr_hash_first(db->pool, db->props);
@@ -359,8 +470,9 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
     {
       const void *name = NULL;
       
+      /* FIXME: namespace handling needed here */
       apr_hash_this(db->hi, &name, NULL, NULL);
-      pname->ns = DAV_CMS_NS; 
+      pname->ns = DAV_CMS_NS;
       pname->name = (const char*) name;
     }
   return NULL;
@@ -377,7 +489,8 @@ dav_cms_db_next_name(dav_db *db, dav_prop_name *pname)
   if (db->hi != NULL)
     {
       const void *name = NULL;
-  
+      
+      /* FIXME: namespace handling here */
       pname->ns = DAV_CMS_NS;
       apr_hash_this(db->hi, &name, NULL, NULL);
       pname->name = (const char *) name;

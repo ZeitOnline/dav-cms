@@ -24,6 +24,7 @@ struct dav_db {
   apr_pool_t         *pool;
   apr_hash_t         *props;   /* the resource's properties that */
   apr_hash_index_t   *hi;      /* we are sequencing over         */
+  
 };
 
 
