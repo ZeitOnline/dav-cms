@@ -170,14 +170,56 @@ dav_cms_db_close(dav_db *db)
 dav_error *
 dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
 {
+
+  PGresult   *res;  
+  char       *buffer, *qtempl, *query;
+  char       *turi;
+  size_t      tlen, qlen;
+  int         ntuples, i;
+
   /* FIXME: to my understanding, we are asked to insert our namespaces
    * (i.e. the ones we manage for the given resource) into the xml
    * namespace info struct. In realiter we want to fetch all
    * namespaces known to us from the database.
    */
   dav_xmlns_add(xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
-  /* FIXME: dynamically insert namespaces from database here */
+  
+  /* Now we select all namespaces defined for the given
+   * URI and inset them into the namespace map with generated
+   * prefixes.
+   */
+  ntuples = 0;
+  qlen    = 0;
+  
+  tlen   = strlen(db->resource->uri);
+  buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+  tlen   = PQescapeString(buffer, db->resource->uri, tlen);
+  turi   = buffer;      
+  qlen  += tlen;
+  
+  qtempl = "SELECT namespace FROM attributes WHERE uri = '%s'"; 
+  qlen  += strlen(qtempl);
+  query = (char *) ap_palloc(db->pool, qlen);
+  snprintf(query, qlen, qtempl, turi);
+  
+  /* execute the database query and check return value */
+  res   = PQexec(db->conn, query);
+  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+      return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			   "Fatal Error: datbase error during  property storage.");	  
+    }
+  ntuples = PQntuples(res);
+  for(i = 0; i < ntuples; i++)
+    {
+      char *namespace, *prefix;
+      
+      namespace = apr_pstrdup(xi->pool, (const char *) PQgetvalue(res, i, 0));
+      prefix    = apr_psprintf(db->pool, "CMS%d", i);
+      dav_xmlns_add(xi, prefix, namespace);
+    }
   dav_xmlns_add(xi, "ZEIT", "http://namespaces.zeit.de/blub");
+  PQclear(res);
   return NULL;
 }
 
@@ -243,15 +285,30 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
 			   "Fatal Error: datbase error during  property storage.");	  
     }
     ntuples = PQntuples(res);
+    {
+      apr_hash_index_t *hi = apr_hash_first(xi->pool, xi->prefix_uri);
+      for (; hi != NULL; hi = apr_hash_next(hi)) {
+        const void *prefix;
+        void *uri;
+        const char *s;
 
+        apr_hash_this(hi, &prefix, NULL, &uri);
+
+        s = apr_psprintf(xi->pool, " xmlns:%s=\"%s\"",
+                         (const char *)prefix, (const char *)uri);
+        ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[[%s]]\n", s);
+      }
+      
+  }
     /* Iterate over the result and append the data to the output string */
     for(i = 0; i < ntuples; i++)
       {
-	char *prefix, *tag;
+	char *prefix, *uri, *tag;
 	
+	uri = PQgetvalue(res, i, 1);
 	tag = PQgetvalue(res, i, 2);
-	prefix = (char *)dav_xmlns_get_prefix(xi, PQgetvalue(res, i, 1));
-	prefix = prefix ? prefix : "ZEIT";
+	prefix = (char *)dav_xmlns_get_prefix(xi, uri);
+	//prefix = prefix ? prefix : "ZEIT";
 	buffer = apr_psprintf(db->pool,"<%s:%s>%s</%s:%s>",
 			      prefix,
 			      tag,
@@ -259,6 +316,7 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
 			      prefix,
 			      tag);
 	apr_text_append(db->pool, phdr, buffer);
+	ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[URI: %s Prefix %s]\n", uri, prefix);
       }
     PQclear(res);
     *found = ntuples;
