@@ -1,0 +1,41 @@
+
+* Database Issues
+** Connection Handling
+*** Design
+**** A connection to the back-end is opened for each child.
+     We open connection the first time it is needed (lazy connection,
+     so to say).
+**** All operations on a set of properties are done within an
+     explicit transaction.
+**** We might be able to support rollback for properties.
+
+*** Algorithmic
+
+    - On module initialization we need to insert hook functions 
+      that get called on child init as well as child destruction
+      (we need the later for proper termination of connections to
+      the database back-end).
+    - during module configuration (second phase) we fill the necessary
+      information into our per-server module configuration. The dbconn
+      slot of the configuration struct is explicitly set to NULL.
+    - during the modules life cycle, any function that needs to access 
+      the database must check for dbconn == NULL. If so, we try to connect
+      to the database with the settings from the per-server configuration.
+      The connection must not be closed (this is left to the child destruction
+      hook). 
+    - The child destruction hook is responsible for calling 'PQfinish(dbconn)'.
+
+** Outstanding Issues
+*** Threading
+    For now, we keep the connection in a module/child process
+    global data structure. This is not thread save and will
+    certainly fail for MPR models other than the (default) prefork
+    model.
+*** Error Handling
+*** Versioning
+    - The current database schema has no means to store versioning
+      information of property values. Do we need this functionality?
+      As a side note: As soon as we switch to the subversion DAV backend
+      provider, this will be a non-issue since subversion transforms version
+      information into the URI domain (which we can handle), hence no
+      further actions are needed.

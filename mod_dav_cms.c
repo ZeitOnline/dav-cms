@@ -21,8 +21,6 @@
 #include <httpd.h>
 #include <http_config.h>
 #include <http_protocol.h>
-
-#include <sys/limits.h>
 #include <apr.h>
 #include <ap_config.h>
 #include <apr_strings.h>
