@@ -1,7 +1,21 @@
+/**
+ * @package dav_cms
+ */
+
 /* 
 **  mod_dav_cms.c -- Apache DAV provider module
 **
-*/ 
+** =================================================================
+**    CONFIGURATION OPTIONS
+** =================================================================
+**
+**  In the apache configuration file: 
+**   
+**  CMSBackend  dav backend module.
+**
+**  CMSdsn      database source for the cms module
+**
+**/ 
 
 #include <httpd.h>
 #include <http_config.h>
@@ -22,7 +36,9 @@ const static dav_provider *dav_backend_provider;
  **  Hooks that this module provides:
  **/
 
-static int dav_cms_init(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp,
+static int dav_cms_init(apr_pool_t *p, 
+			apr_pool_t *plog, 
+			apr_pool_t *ptemp,
 			server_rec *s)
 {
   ap_add_version_component(p, DAV_CMS_MODULE_NAME DAV_CMS_VERSION);
@@ -32,11 +48,19 @@ static int dav_cms_init(apr_pool_t *p, apr_pool_t *plog, apr_pool_t *ptemp,
 
 
 /**
- ** Callback functions for configuration commands.
- **/
+ * Callback functions for configuration commands.
+ */
 
-static const char *dav_cms_backend_cmd(cmd_parms *cmd, void *config,
-                                    const char *arg1)
+/**
+ * @param cmd 
+ * @param config A pointer to the dav_cms_server_conf struct.
+ *               This needs to be typecast from (void *).
+ * @param arg1   The actual parameter as a char*.
+ *
+ */
+static const char *dav_cms_backend_cmd(cmd_parms  *cmd, 
+				       void       *config,
+				       const char *arg1)
 {
   //dav_svn_dir_conf *conf = config;
   //conf->fs_path = apr_pstrdup(cmd->pool, arg1);
@@ -61,8 +85,9 @@ static const char *dav_cms_backend_cmd(cmd_parms *cmd, void *config,
     }
 }
 
-static const char *dav_cms_dsn_cmd(cmd_parms *cmd, void *config,
-                                    const char *arg1)
+static const char *dav_cms_dsn_cmd(cmd_parms  *cmd,
+				   void       *config,
+				   const char *arg1)
 {
   //dav_svn_dir_conf *conf = config;
 
