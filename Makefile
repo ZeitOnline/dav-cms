@@ -8,6 +8,8 @@ top_srcdir=/usr/local/apache2
 top_builddir=/usr/local/apache2
 include /usr/local/apache2/build/special.mk
 
+# Added aditional warnings.
+CFLAGS=-Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Werror
 #   the used tools
 APXS=apxs
 APACHECTL=apachectl

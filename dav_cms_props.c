@@ -15,6 +15,14 @@
 dav_error *
 dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb)
 {
+  dav_db *db;
+
+  db = (dav_db *)apr_pcalloc(p, sizeof(*db));
+
+  db->resource = resource;
+  db->p = p;
+  *pdb = NULL;
+
 #ifndef NDEBUG
   fprintf(stderr, "[cms]: Opening database '%s'\n", resource->uri);
 #endif

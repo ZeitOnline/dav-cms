@@ -14,8 +14,9 @@ extern "C" {
 #define DAV_CMS_MODULE_NAME  "ZeitCMS"
 #define DAV_CMS_VERSION      "0.1a"
 
-  
-/**
+extern dav_provider dav_cms_provider;  
+
+ /**
  ** Configuration Handling
  **/
 
@@ -25,7 +26,6 @@ extern "C" {
  * options for the dav_cms module.
  */
   typedef struct {
-    int   magic;
     char *backend;
     char *dsn;
     void *dbconn;

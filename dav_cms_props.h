@@ -10,7 +10,26 @@
 extern "C" {
 #endif
 
+  /**
+   * This is our own version of struct dav_db. This struct
+   * is typede'd in mod_dav.h but only as an alias to a not
+   * public structure in mod_dav.c -- hence we need to redefine
+   * it here.
+   * FIXME: most of the code here is taken rather literal from
+   * mod_Dav_svn.[ch].
+   */
 
+struct dav_db {
+  const dav_resource *resource;
+  apr_pool_t *p;
+
+  /* the resource's properties that we are sequencing over */
+  apr_hash_t *props;
+  apr_hash_index_t *hi;
+};
+
+
+extern  const dav_hooks_propdb dav_cms_hooks_propdb;
   /**
    * Prototypes for the dav_cms property database hooks */
 dav_error *

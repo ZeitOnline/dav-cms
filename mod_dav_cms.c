@@ -25,9 +25,10 @@
 #include <mod_dav.h>
 #include <stdio.h>
 #include "mod_dav_cms.h"
+#include "dav_cms_props.h"
 
 /* FIXME: _no_ global/statics allowed! */
-const static dav_provider *dav_backend_provider;
+static const dav_provider *dav_backend_provider;
 
 
 
@@ -41,7 +42,7 @@ static int dav_cms_init(apr_pool_t *p,
 			apr_pool_t *ptemp,
 			server_rec *s)
 {
-  ap_add_version_component(p, DAV_CMS_MODULE_NAME DAV_CMS_VERSION);
+  ap_add_version_component(p, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION);
   return OK;
 }
 
@@ -51,32 +52,47 @@ static int dav_cms_init(apr_pool_t *p,
  * Callback functions for configuration commands.
  */
 
-static const char *dav_cms_create_server_conf()
+static void *dav_cms_create_server_conf(apr_pool_t *p, server_rec *s)
 {
-  
+  dav_cms_server_conf *conf;
+
+  conf = (dav_cms_server_conf *)apr_palloc(p, sizeof(dav_cms_server_conf));
+  if(!conf)
+    return NULL;
+  conf->backend = (char *) NULL;
+  conf->dsn     = (char *) NULL;
+  conf->dbconn  = NULL;
+  return conf;
 }
 
-static const char *dav_cms_create_dir_conf()
+static void *dav_cms_create_dir_conf(apr_pool_t *p, char *dir)
 {
+  dav_cms_dir_conf *conf; 
 
+  conf = (dav_cms_dir_conf *)apr_palloc(p, sizeof(dav_cms_dir_conf));
+  return conf;
 }
 
-static const char *dav_cms_merge_server_conf()
+static void *dav_cms_merge_server_conf(apr_pool_t *p,
+				       void *base, 
+				       void *overrides)
 {
-  
+  return overrides;
 }
 
-static const char *dav_cms_merge_dir_conf()
+static void *dav_cms_merge_dir_conf(apr_pool_t *p,
+				    void *base, 
+				    void *overrides)
 {
-  
+  return NULL;
 }
 
 static const char *dav_cms_backend_cmd(cmd_parms  *cmd, 
 				       void       *config,
 				       const char *arg1)
 {
-  //dav_svn_dir_conf *conf = config;
-  //conf->fs_path = apr_pstrdup(cmd->pool, arg1);
+  dav_cms_server_conf *conf = config;
+  
   /*
    * Try to fetch the backend DAV provider.
    * FIXME: this shouldn't be a module static but rather be part
@@ -92,7 +108,12 @@ static const char *dav_cms_backend_cmd(cmd_parms  *cmd,
 #ifndef NDEBUG
       fprintf(stderr, "[CMS]: Found backend DAV provider!\n");
 #endif
+      conf->backend = apr_pstrdup(cmd->pool, arg1);  
       /* patch the provider table */
+      dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
+      dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
+      dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
+      dav_cms_provider.binding = dav_backend_provider->binding;   /* ???              */
       return NULL;
     }
   else 
@@ -136,16 +157,6 @@ static const command_rec dav_cms_cmds[] =
   { NULL }
 };
 
-static const dav_provider dav_cms_provider =
-{
-  NULL,                       /* storage */
-  dav_cms_hooks_propdb,       /* property db */
-  NULL,                       /* locks */
-  NULL,                       /* versioning */ 
-  NULL                        /* binding */
-};
-
-
 static void dav_cms_register_hooks(apr_pool_t *p)
 {
   /* Apache2 hooks we provide */
@@ -158,12 +169,12 @@ static void dav_cms_register_hooks(apr_pool_t *p)
 /* Dispatch list for API hooks */
 module AP_MODULE_DECLARE_DATA dav_cms_module = {
     STANDARD20_MODULE_STUFF, 
-    NULL,                   /* create per-dir    config structures */
-    NULL,                   /* merge  per-dir    config structures */
-    NULL,                   /* create per-server config structures */
-    NULL,                   /* merge  per-server config structures */
-    dav_cms_cmds,           /* table of config file commands       */
-    dav_cms_register_hooks  /* register hooks                      */
+    dav_cms_create_dir_conf,      /* create per-dir    config structures */
+    dav_cms_merge_dir_conf,       /* merge  per-dir    config structures */
+    dav_cms_create_server_conf,   /* create per-server config structures */
+    dav_cms_merge_server_conf,    /* merge  per-server config structures */
+    dav_cms_cmds,                 /* table of config file commands       */
+    dav_cms_register_hooks        /* register hooks                      */
 };
 
 
