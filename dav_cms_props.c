@@ -203,7 +203,7 @@ dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
   turi   = buffer;      
   qlen  += tlen;
   
-  qtempl = "SELECT namespace FROM attributes WHERE uri = '%s'"; 
+  qtempl = "SELECT namespace FROM facts WHERE uri = '%s'"; 
   qlen  += strlen(qtempl);
   query = (char *) ap_palloc(db->pool, qlen);
   snprintf(query, qlen, qtempl, turi);
@@ -463,7 +463,7 @@ dav_cms_db_remove(dav_db *db, const dav_prop_name *name)
       tname  = buffer; 
       qlen  += tlen;
       
-      qtempl = "DELETE FROM attributes WHERE uri = '%s' AND  namespace = '%s' AND  name = '%s'";
+      qtempl = "DELETE FROM facts WHERE uri = '%s' AND  namespace = '%s' AND  name = '%s'";
       qlen  += strlen(qtempl);
       query = (char *) ap_palloc(db->pool, qlen);
       snprintf(query, qlen, qtempl, turi, tns, tname);
@@ -510,7 +510,7 @@ dav_cms_db_exists(dav_db *db, const dav_prop_name *name)
   tname  = buffer; 
   qlen  += tlen;
 
-  qtempl = "SELECT * FROM attributes "
+  qtempl = "SELECT * FROM facts "
     "WHERE uri = '%s' AND namespace ='%s' AND 'name = '%s'"; 
   qlen  += strlen(qtempl);
   query = (char *) ap_palloc(db->pool, qlen);
@@ -571,7 +571,7 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
       turi   = buffer;      
       qlen  += tlen;
 
-      qtempl = "SELECT namespace, name, value FROM attributes "
+      qtempl = "SELECT namespace, name, value FROM facts "
 	       "WHERE uri = '%s'"; 
       qlen  += strlen(qtempl);
       query = (char *) ap_palloc(db->pool, qlen);
