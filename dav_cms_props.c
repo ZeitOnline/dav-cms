@@ -1,4 +1,5 @@
-/* Filespec: $Id$
+/* Filespec: $Id$ */
+
 /**
  * @package dav_cms
  */
@@ -79,6 +80,9 @@ dav_cms_start_transaction(void)
   if(!dbh->dbh)
     return CMS_FAIL;
 
+  /* FIXME: test only */
+  return CMS_OK;
+
   res = PQexec(dbh->dbh, "BEGIN");
   if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
     {
@@ -96,6 +100,9 @@ dav_cms_commit(void)
   
   if(!dbh->dbh)
     return CMS_FAIL;
+
+  /* FIXME: test only */
+  return CMS_OK;
 
   res = PQexec(dbh->dbh, "COMMIT");
   if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
@@ -191,6 +198,8 @@ dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
    */
   dav_xmlns_add(xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
   
+  return NULL;
+
   /* Now we select all namespaces defined for the given
    * URI and inset them into the namespace map with generated
    * prefixes.
@@ -223,10 +232,10 @@ dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
       
       namespace = apr_pstrdup(xi->pool, (const char *) PQgetvalue(res, i, 0));
       prefix    = apr_psprintf(db->pool, "CMS%d", i);
-      dav_xmlns_add(xi, prefix, namespace);
+      //      dav_xmlns_add(xi, prefix, namespace);
+      (void) dav_xmlns_add_uri (xi, namespace);
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[Adding ns '%s' as '%s']\n", namespace, prefix);
     }
-  dav_xmlns_add(xi, "ZEIT", "http://namespaces.zeit.de/blub");
   PQclear(res);
   return NULL;
 }
@@ -237,7 +246,7 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
 			apr_text_header *phdr, 
 			int *found)
 {
-  dav_error  *err;
+  dav_error  *err = NULL;
   PGresult   *res;  
   char       *buffer, *qtempl, *query;
   char       *turi, *tns, *tname;
@@ -262,8 +271,17 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
    * one request (read: a propget/depth=1 on a collection should
    * trigger this only once.
    */
-  err = dav_cms_db_define_namespaces(db, xi);
+  // err = dav_cms_db_define_namespaces(db, xi);
   if(err) return err;
+
+  /* Special cases for namespaces we know we don't touch */
+  if ((! strcmp (name->ns, "DAV:")) ||
+      (! strcmp (name->ns, "http://apache.org/dav/props/")))
+  {
+    *found = 0;
+    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "[Passing DAV: request]\n");
+    return NULL;
+  }
 
   ntuples = 0;
   qlen    = 0;
@@ -306,12 +324,13 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
   /* Iterate over the result and append the data to the output string */
   for(i = 0; i < ntuples; i++)
     {
-      char *prefix, *uri, *tag;
+      const char *prefix, *uri, *tag;
 	
       uri = PQgetvalue(res, i, 1);
       tag = PQgetvalue(res, i, 2);
-      prefix = (char *)dav_xmlns_get_prefix(xi, uri);
-      prefix = (char *) apr_hash_get(xi->uri_prefix, uri, -1);
+      //      prefix = (char *)dav_xmlns_get_prefix(xi, uri);
+      prefix = dav_xmlns_add_uri (xi, uri);
+      // prefix = (char *) apr_hash_get(xi->uri_prefix, uri, -1);
       //prefix = prefix ? prefix : "ZEIT";
       buffer = apr_psprintf(db->pool,"<%s:%s>%s</%s:%s>",
 			    prefix,
@@ -321,7 +340,7 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
 			    tag);
       apr_text_append(db->pool, phdr, buffer);
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-		   "[URI: '%s' Prefix '%s']\n", uri, prefix);
+		   "[URI: '%s' Prefix '%s'] %s\n", uri, prefix, buffer);
     }
   PQclear(res);
   *found = ntuples;
@@ -528,9 +547,10 @@ dav_cms_db_exists(dav_db *db, const dav_prop_name *name)
   if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
     {
       dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-		    "Fatal Error: datbase error during  property storage.");	  
+		    "Fatal Error: datbase error during  property existance check.");	  
     }
   exists = PQntuples(res);
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "Existance check: '%d'\n", exists); 
   PQclear(res);
   return exists;
 }
