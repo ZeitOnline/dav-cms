@@ -1,3 +1,16 @@
+2002-04-15    <ralf@calvin>
+
+	* mod_dav_cms.c (dav_cms_create_server_conf): Changed
+	  module initialisation and moved patching of dav provider
+	  hooks into an independent function. This function is called
+	  during module hookregistration time -- not the most natural
+	  place but it seems to work.
+
+	* dav_cms_props.c (dav_cms_db_store): Added some dummy
+	  functionality to fake db_open, db_store and db_fetch.
+	  Fixed nasty segfault bug caused by strange incomplete
+	  typedef in mod_dav.h.
+
 2002-04-11    <ralf@calvin>
 
 	* mod_dav_cms.c: Initial Changelog entry.

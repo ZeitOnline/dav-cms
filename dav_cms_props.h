@@ -21,11 +21,9 @@ extern "C" {
 
 struct dav_db {
   const dav_resource *resource;
-  apr_pool_t *p;
-
-  /* the resource's properties that we are sequencing over */
-  apr_hash_t *props;
-  apr_hash_index_t *hi;
+  apr_pool_t         *pool;
+  apr_hash_t         *props;   /* the resource's properties that */
+  apr_hash_index_t   *hi;      /* we are sequencing over         */
 };
 
 

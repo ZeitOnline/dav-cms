@@ -3,7 +3,12 @@
 #define _MOD_DAV_CMS_H_
 
 /**
- * @package dav_cms
+  * @package dav_cms
+  * @mainpage mod_dav_cms
+  *
+  * @section Intro
+  *
+  * @section Server Configuration
  */
 
 #ifdef __cplusplus
@@ -11,37 +16,64 @@ extern "C" {
 #endif
 
 #define DAV_CMS_PROVIDER     "zeit-cms"
+#define DAV_DEFAULT_BACKEND  "filesystem"
 #define DAV_CMS_MODULE_NAME  "ZeitCMS"
 #define DAV_CMS_VERSION      "0.1a"
 
-extern dav_provider dav_cms_provider;  
 
- /**
- ** Configuration Handling
- **/
+#define DAV_CMS_NS           "http://namespaces.zeit.de/CMS"
+#define DAV_CMS_NS_PREFIX    "CMS"
 
-/**
- * dav_cms_server_conf
- * This struct holds per server configuration
- * options for the dav_cms module.
- */
+
+  extern  dav_provider  dav_cms_provider;  
+  extern  const dav_provider *dav_backend_provider;
+
+  /**
+   * Configuration Handling
+   */
+
+  /**
+   * @struct dav_cms_server_conf
+   * @brief  This struct holds per server configuration
+   *         options for the dav_cms module.
+   */
   typedef struct {
-    char *backend;
-    char *dsn;
-    void *dbconn;
+    char *backend;              /**< The name of the backend provider.        */
+    char *dsn;                  /**< Database connection string.              */
+    void *dbconn;               /**< Open database connection handle or NULL. */
     /** FIXME: do we need a transaction lock ? **/
   } dav_cms_server_conf;
   
   /**
-   * dav_cms_server_conf
-   * This struct holds per directory configuration
-   * options for the dav_cms module.
+   * @struct dav_cms_dir_conf
+   * @brief  This struct holds per directory configuration
+   *         options for the dav_cms module.
    */
   typedef struct {
     int magic;
     ; /* void for now */
   } dav_cms_dir_conf;
   
+  /**
+   * @function dav_cms_patch_provider
+   * This function will install mod_dav_cms into 
+   * mod_davs provider table. The following steps are
+   * performed:
+   * 
+   * -# it attempts to get a pointer to the backend
+   *    provider that is responsible to handle all
+   *    functions that we don't handle.
+   *
+   * -# if found, it will grab references to these
+   *    functions and install them in our own provider
+   *    hook table.
+   * 
+   * -# finally the own functions are inserted into the
+   *    hook table.
+   *
+   * @param newprov the name of the backend provider.
+   */
+  void dav_cms_patch_provider(const char *newprov);
 
 #ifdef __cplusplus
 }

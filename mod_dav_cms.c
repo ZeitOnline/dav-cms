@@ -1,5 +1,6 @@
 /**
  * @package dav_cms
+ * @file    mod_dav_cms.c
  */
 
 /* 
@@ -20,6 +21,9 @@
 #include <httpd.h>
 #include <http_config.h>
 #include <http_protocol.h>
+
+#include <sys/limits.h>
+#include <apr.h>
 #include <ap_config.h>
 #include <apr_strings.h>
 #include <mod_dav.h>
@@ -28,7 +32,45 @@
 #include "dav_cms_props.h"
 
 /* FIXME: _no_ global/statics allowed! */
-static const dav_provider *dav_backend_provider;
+//FIXME: needs to be visible to dav_prpos.c //static 
+
+const dav_provider *dav_backend_provider;
+dav_provider dav_cms_provider;
+
+/* forward-declare for use in configuration lookup */
+module AP_MODULE_DECLARE_DATA dav_cms_module;
+
+
+void
+dav_cms_patch_provider(const char *newprov)
+{
+  char *prov;
+  
+  if (newprov)
+    {
+      prov = (char *) newprov;
+    } 
+  else 
+    {
+	prov = DAV_DEFAULT_BACKEND;
+    }
+
+  dav_backend_provider = NULL;
+  dav_backend_provider = dav_lookup_provider(prov);
+  if(dav_backend_provider)
+    {
+#ifndef NDEBUG
+      fprintf(stderr, "[CMS]: ;-) Found backend DAV provider!\n");
+#endif
+      /* patch the provider table */
+      dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
+      dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
+      dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
+      dav_cms_provider.binding = dav_backend_provider->binding;   /* ???              */
+      /* insert our functionality */
+      dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
+    }
+}
 
 
 
@@ -91,8 +133,10 @@ static const char *dav_cms_backend_cmd(cmd_parms  *cmd,
 				       void       *config,
 				       const char *arg1)
 {
-  dav_cms_server_conf *conf = config;
+  dav_cms_server_conf *conf;
   
+  /* Find the server configuration */
+  conf = (dav_cms_server_conf *)ap_get_module_config(cmd->server->module_config, &dav_cms_module);
   /*
    * Try to fetch the backend DAV provider.
    * FIXME: this shouldn't be a module static but rather be part
@@ -106,8 +150,9 @@ static const char *dav_cms_backend_cmd(cmd_parms  *cmd,
   if(dav_backend_provider)
     {
 #ifndef NDEBUG
-      fprintf(stderr, "[CMS]: Found backend DAV provider!\n");
+      fprintf(stderr, "[CMS]: ;-) Found backend DAV provider!\n");
 #endif
+      return NULL;
       conf->backend = apr_pstrdup(cmd->pool, arg1);  
       /* patch the provider table */
       dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
@@ -150,19 +195,21 @@ static const command_rec dav_cms_cmds[] =
   /* per directory/location */
   
   /* per server */
-  AP_INIT_TAKE1("CMSbackend", dav_cms_backend_cmd, NULL, RSRC_CONF,
+  AP_INIT_TAKE1("CMS:Backend", dav_cms_backend_cmd, NULL, RSRC_CONF,
                 "specify the name of the DAV backend module to use "),
-  AP_INIT_TAKE1("CMSdsn", dav_cms_dsn_cmd, NULL, RSRC_CONF,
+  AP_INIT_TAKE1("CMS:DSN", dav_cms_dsn_cmd, NULL, RSRC_CONF,
                 "specify DSN of the postgres database to use "),
   { NULL }
 };
 
 static void dav_cms_register_hooks(apr_pool_t *p)
 {
+  dav_cms_patch_provider((char *)NULL);
   /* Apache2 hooks we provide */
   ap_hook_post_config(dav_cms_init, NULL, NULL, APR_HOOK_MIDDLE);
 
   /* Apache2 mod_dav hooks we provide */
+
   dav_register_provider(p, DAV_CMS_PROVIDER, &dav_cms_provider);
 }
 
