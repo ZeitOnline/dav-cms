@@ -12,7 +12,7 @@ extern "C" {
 
   /**
    * This is our own version of struct dav_db. This struct
-   * is typede'd in mod_dav.h but only as an alias to a not
+   * is typed in mod_dav.h but only as an alias to a not
    * public structure in mod_dav.c -- hence we need to redefine
    * it here.
    * FIXME: most of the code here is taken rather literal from

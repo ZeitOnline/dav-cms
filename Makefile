@@ -19,6 +19,7 @@ APACHECTL=apachectl
 #INC=-Imy/include/dir
 #LIB=-Lmy/lib/dir -lmylib
 
+LIB=-L/usr/lib/postgresql/lib -lpq
 #   the default target
 all: local-shared-build
 

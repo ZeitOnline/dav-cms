@@ -1,4 +1,3 @@
-
 #ifndef _MOD_DAV_CMS_H_
 #define _MOD_DAV_CMS_H_
 
@@ -25,23 +24,39 @@ extern "C" {
 #define DAV_CMS_NS_PREFIX    "CMS"
 
 
-  extern  dav_provider  dav_cms_provider;  
-  extern  const dav_provider *dav_backend_provider;
+
+
+  /** 
+   * Module specific error codes 
+   */
+  typedef enum {CMS_OK=0, CMS_FAIL} dav_cms_status_t;
+
+
+  /**
+   * Our database connection
+   *
+   *
+   */
+  typedef struct {
+    char   *dsn;                /**< Database connection string.              */
+    PGconn *dbh;                /**< Open database connection handle or NULL. */
+    /** FIXME: do we need a transaction lock ? **/
+  } dav_cms_dbh;
+
+
 
   /**
    * Configuration Handling
    */
 
+  
   /**
    * @struct dav_cms_server_conf
    * @brief  This struct holds per server configuration
    *         options for the dav_cms module.
    */
   typedef struct {
-    char *backend;              /**< The name of the backend provider.        */
-    char *dsn;                  /**< Database connection string.              */
-    void *dbconn;               /**< Open database connection handle or NULL. */
-    /** FIXME: do we need a transaction lock ? **/
+    char        *backend;              /**< The name of the backend provider.           */
   } dav_cms_server_conf;
   
   /**
@@ -54,11 +69,17 @@ extern "C" {
     ; /* void for now */
   } dav_cms_dir_conf;
   
+
+
+  /**
+   * Function declarations
+   */
+
   /**
    * @function dav_cms_patch_provider
-   * This function will install mod_dav_cms into 
-   * mod_davs provider table. The following steps are
-   * performed:
+   *
+   * This function will install mod_dav_cms into mod_davs provider
+   * table. The following steps are performed:
    * 
    * -# it attempts to get a pointer to the backend
    *    provider that is responsible to handle all
@@ -73,7 +94,16 @@ extern "C" {
    *
    * @param newprov the name of the backend provider.
    */
-  void dav_cms_patch_provider(const char *newprov);
+  void         dav_cms_patch_provider(const char *newprov);
+
+
+
+  /**
+   * Module global data structures
+   */
+  extern        dav_provider  dav_cms_provider;  
+  extern  const dav_provider *dav_backend_provider;
+  extern        dav_cms_dbh  *dbh;
 
 #ifdef __cplusplus
 }

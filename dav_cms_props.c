@@ -8,25 +8,129 @@
 #include <ap_config.h>
 #include <apr_strings.h>
 #include <mod_dav.h>
-#include <stdio.h>
+#include <postgresql/libpq-fe.h>
 #include "mod_dav_cms.h"
 #include "dav_cms_props.h"
 
+/**
+ * Test whether we allready have an open connection to the
+ * database. If not, attempt to connect.
+ * @returns 0 on success or the appropriate error code in case
+ * of failure.
+ */
+
+static dav_cms_status_t
+dav_cms_db_connect(dav_cms_dbh *database)
+{
+  if (!database)
+    return CMS_FAIL;
+
+  if (!database->dbh)
+    {
+      if(!database->dsn)
+	{
+	  ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
+		       "[cms]: No DSN configured");
+	  return CMS_FAIL;
+	}
+      database->dbh = PQconnectdb(database->dsn);
+      if (PQstatus(database->dbh) == CONNECTION_BAD)
+	{
+	  ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
+		       "[cms]: Database error '%s'", PQerrorMessage(database->dbh));
+	  PQfinish(database->dbh);
+	  /* FIXME: set connection to NULL */
+	  return CMS_FAIL;
+	}
+      /* set module db handle from dbconn */
+      // = dbh;
+    }
+  return CMS_OK;
+}
+
+static dav_cms_status_t
+dav_cms_db_disconnect(dav_cms_dbh *database)
+{
+  if(!database)
+    return CMS_FAIL;
+
+  if(database->dbh)
+    {
+      PQfinish(database->dbh);
+    }
+  return 0;
+}
+
+
+static dav_cms_status_t
+dav_cms_start_transaction(void)
+{
+  PGresult *res;
+  
+  if(!dbh->dbh)
+    return CMS_FAIL;
+
+  res = PQexec(dbh->dbh, "BEGIN");
+  if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+      PQclear(res);
+      return CMS_FAIL;
+    }
+  PQclear(res);
+  return CMS_OK;
+}
+
+static dav_cms_status_t
+dav_cms_commit(void)
+{
+ PGresult *res;
+  
+  if(!dbh->dbh)
+    return CMS_FAIL;
+
+  res = PQexec(dbh->dbh, "COMMIT");
+  if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+    {
+      PQclear(res);
+      return CMS_FAIL;
+    }
+  PQclear(res);
+  return CMS_OK;
+}
+
+static dav_cms_status_t
+dav_cms_rollback(void)
+{
+  return CMS_OK;
+}
 
 dav_error *
 dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb)
 {
-  dav_db *db = NULL;
+  dav_db           *db;
 
-  /* FIXME: in reality we would either open a connection
-   * to the postgres backend or begin a transaction on an
-   * open connection.
-   */
+  if(!dbh)
+    dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+		  "Fatal Error: no database connection set up");
+
+  /* really open database connection */
+  if(dav_cms_db_connect(dbh) != CMS_OK)
+    dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+		  "Error connection to property database");
+
 
   db = (dav_db *)apr_pcalloc(p, sizeof(*db));
   db->resource = resource;
   db->pool     = p;
   *pdb = db;
+
+  /* FIXME: in reality we would either open a connection to the
+   * postgres backend or begin a transaction on an open connection.
+   */
+  if (dav_cms_start_transaction() != CMS_OK)
+    dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
+		  "Error establishing transaction in property database");
+
 
 #ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Opening database '%s'\n", resource->uri);
@@ -43,28 +147,44 @@ dav_cms_db_close(dav_db *db)
   resource = db->resource;
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closing database '%s'\n", resource->uri);
 #endif
+
+  /*FIXME: is this a good place to commit? */
+ if (dav_cms_commit() != CMS_OK)
+   dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+		 "Error commiting transaction in property database\n"
+		 "Your operation might not be stored in the backend");
+ /* FIXME: Just to keep compiler happy*/
+ if(0) dav_cms_rollback();
 }
 
 dav_error *
 dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
 {
-  /* FIXME: to my understanding, we are asked to insert our name-
-   * spaces (i.e. the ones we manage for the given resource) into
-   * the xml namespace info struct.
+  /* FIXME: to my understanding, we are asked to insert our namespaces
+   * (i.e. the ones we manage for the given resource) into the xml
+   * namespace info struct. In realiter we want to fetch all
+   * namespaces known to us from the database.
    */
   dav_xmlns_add(xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
-
   return NULL;
 }
 
 dav_error *
 dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
-			dav_xmlns_info *xi,
-			apr_text_header *phdr, int *found)
+			dav_xmlns_info  *xi,
+			apr_text_header *phdr, 
+			int *found)
 {
   const char *prefix = NULL;   /* Namespace prefix    */
   char       *buffer = NULL;   /* String to be output */
 
+  /* FIXME: how can we access the server configuration from here ? */
+  if(dav_cms_db_connect(NULL) != CMS_OK)
+    {
+      dav_cms_db_disconnect(NULL);
+      return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			   "Unable to connect to database");
+    }
 #ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
 	       "[cms]: Looking for `%s' : `%s'\n", name->ns, name->name);

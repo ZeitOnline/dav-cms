@@ -1,5 +1,12 @@
+-*- outline -*-
+* Properties
 
 * Database Issues
+** Database Design
+*** Table Design
+*** Typing
+*** Fast and Efficient Lookup
+
 ** Connection Handling
 *** Design
 **** A connection to the back-end is opened for each child.
@@ -39,3 +46,4 @@
       provider, this will be a non-issue since subversion transforms version
       information into the URI domain (which we can handle), hence no
       further actions are needed.
+

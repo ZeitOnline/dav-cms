@@ -19,25 +19,31 @@
 **/ 
 
 #include <httpd.h>
+#include <http_log.h>
 #include <http_config.h>
 #include <http_protocol.h>
 #include <apr.h>
+#include <apr_pools.h>
 #include <ap_config.h>
 #include <apr_strings.h>
 #include <mod_dav.h>
-#include <stdio.h>
+#include <postgresql/libpq-fe.h>
 #include "mod_dav_cms.h"
 #include "dav_cms_props.h"
 
 /* FIXME: _no_ global/statics allowed! */
-//FIXME: needs to be visible to dav_prpos.c //static 
+/* FIXME: This _will_ break terribly if used
+ * in threaded code!
+ */
+dav_cms_dbh _dbh;
+dav_cms_dbh *dbh = &_dbh;
 
+//FIXME: needs to be visible to 'dav_cms_props.c'
 const dav_provider *dav_backend_provider;
 dav_provider dav_cms_provider;
 
 /* forward-declare for use in configuration lookup */
 module AP_MODULE_DECLARE_DATA dav_cms_module;
-
 
 void
 dav_cms_patch_provider(const char *newprov)
@@ -47,10 +53,10 @@ dav_cms_patch_provider(const char *newprov)
   if (newprov)
     {
       prov = (char *) newprov;
-    } 
-  else 
+    }
+  else
     {
-	prov = DAV_DEFAULT_BACKEND;
+      prov = DAV_DEFAULT_BACKEND;
     }
 
   dav_backend_provider = NULL;
@@ -58,7 +64,7 @@ dav_cms_patch_provider(const char *newprov)
   if(dav_backend_provider)
     {
 #ifndef NDEBUG
-      fprintf(stderr, "[CMS]: ;-) Found backend DAV provider!\n");
+      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[CMS]: Found backend DAV provider!\n");
 #endif
       /* patch the provider table */
       dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
@@ -70,19 +76,65 @@ dav_cms_patch_provider(const char *newprov)
     }
 }
 
+
+
+/**
+ * @function dav_cms_child_destroy
+ *
+ * This function is registered as a cleanup function during module
+ * initialisation.  Called during the release of the child resource
+ * pool it will release all database resources still occupied by the
+ * child process.
+ *
+ * @param ctxt The dbconnection that might hold a still
+ * open database connection.
+ */
+static apr_status_t
+dav_cms_child_destroy(void *ctxt)
+{
+#ifndef NDEBUG
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Cleaning up resources\n");
+#endif
+
+  if(dbh)
+    dbh = NULL;
+
+  return APR_SUCCESS;
+}
 
 
 
 /**
- **  Hooks that this module provides:
- **/
+ * Hooks that this module provides:
+ */
 
-static int dav_cms_init(apr_pool_t *p, 
+/**
+ * @param pchild     server child process resource pool
+ * @param plog       logging resource pool
+ * @param ptemp      temporary resource pool
+ * @param server_rec server record struct
+ * 
+ * Besides leaving our marks in the servers version string we try to
+ * allocate memory to hold our database settings and a connection
+ * handle.
+ *
+ * We register a cleanup function to ensure propper releasing of all
+ * database related resources.
+ */
+static int dav_cms_init(apr_pool_t *pchild,           
 			apr_pool_t *plog, 
 			apr_pool_t *ptemp,
 			server_rec *s)
 {
-  ap_add_version_component(p, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION);
+  ap_add_version_component(pchild, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION);
+
+  /* Allocate our database connection struct from the child pool ... */
+  dbh = apr_palloc(pchild, sizeof(dav_cms_dbh));
+
+  /* ... and register a cleanup */
+  apr_pool_cleanup_register(pchild, NULL, 
+			    dav_cms_child_destroy, 
+			    dav_cms_child_destroy);
   return OK;
 }
 
@@ -99,9 +151,7 @@ static void *dav_cms_create_server_conf(apr_pool_t *p, server_rec *s)
   conf = (dav_cms_server_conf *)apr_palloc(p, sizeof(dav_cms_server_conf));
   if(!conf)
     return NULL;
-  conf->backend = (char *) NULL;
-  conf->dsn     = (char *) NULL;
-  conf->dbconn  = NULL;
+  conf->backend  = (char *) NULL;
   return conf;
 }
 
@@ -141,17 +191,19 @@ static const char *dav_cms_backend_cmd(cmd_parms  *cmd,
    * of the dav_cms_conf data.
    */
 #ifndef NDEBUG
-  fprintf(stderr, "[CMS]: Request to use '%s' as a backend DAV module.\n", arg1);
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+	       "[CMS]: Request to use '%s' as a backend DAV module.\n", arg1);
 #endif
   dav_backend_provider = NULL;
   dav_backend_provider = dav_lookup_provider(arg1);
   if(dav_backend_provider)
     {
 #ifndef NDEBUG
-      fprintf(stderr, "[CMS]: ;-) Found backend DAV provider!\n");
+      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+		   "[CMS]: Found backend DAV provider!\n");
 #endif
       return NULL;
-      conf->backend = apr_pstrdup(cmd->pool, arg1);  
+      conf->backend = apr_pstrdup(cmd->pool, arg1);
       /* patch the provider table */
       dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
       dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
@@ -161,9 +213,8 @@ static const char *dav_cms_backend_cmd(cmd_parms  *cmd,
     }
   else 
     {
-#ifndef NDEBUG 
-      fprintf(stderr, "[CMS]: Couldn't get backend DAV provider\n");
-#endif
+      ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
+		   "[CMS]: Couldn't get backend DAV provider\n");
       return "\tCMSbackend: no DAV provider with that name.";
     }
 }
@@ -172,11 +223,11 @@ static const char *dav_cms_dsn_cmd(cmd_parms  *cmd,
 				   void       *config,
 				   const char *arg1)
 {
-  //dav_dir_conf *conf = config;
-
-  //conf->fs_path = apr_pstrdup(cmd->pool, arg1);
+  /* FIXME: will this pool last until child destruction? */
+  dbh->dsn = apr_pstrdup(cmd->pool, arg1);
 #ifndef NDEBUG
-  fprintf(stderr, "[CMS]: Request to use %s as a database server\n", arg1);
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+	       "[CMS]: Request to use %s as a database server\n", arg1);
 #endif
   return NULL;
 }
@@ -196,7 +247,7 @@ static const command_rec dav_cms_cmds[] =
   AP_INIT_TAKE1("CMS:Backend", dav_cms_backend_cmd, NULL, RSRC_CONF,
                 "specify the name of the DAV backend module to use "),
   AP_INIT_TAKE1("CMS:DSN", dav_cms_dsn_cmd, NULL, RSRC_CONF,
-                "specify DSN of the postgres database to use "),
+                "specify DSN of the postgresql database to use "),
   { NULL }
 };
 
