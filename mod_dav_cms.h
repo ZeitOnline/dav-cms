@@ -14,6 +14,10 @@
 extern "C" {
 #endif
 
+#ifndef __GNUC__
+#define __inline__
+#endif
+
 #define DAV_CMS_PROVIDER     "zeit-cms"
 #define DAV_DEFAULT_BACKEND  "filesystem"
 #define DAV_CMS_MODULE_NAME  "ZeitCMS"
@@ -23,6 +27,8 @@ extern "C" {
 #define DAV_CMS_NS           "http://namespaces.zeit.de/CMS"
 #define DAV_CMS_NS_PREFIX    "CMS"
 
+#define OFF 0
+#define ON  1
 
 
 

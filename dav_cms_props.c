@@ -16,35 +16,37 @@
 #include "dav_cms_props.h"
 
 
-//########################################################################[ UTILS ]##
+/*=================================================================[ TRANSACTION ]==*/
 
 /**
  * Test whether we allready have an open connection to the
  * database. If not, attempt to connect.
+ * @param database a pointer to a \c dav_cms_dbh
  * @returns 0 on success or the appropriate error code in case
  * of failure.
  */
 
 static dav_cms_status_t
-dav_cms_db_connect(dav_cms_dbh *database)
+dav_cms_db_connect (dav_cms_dbh * database)
 {
   if (!database)
     return CMS_FAIL;
 
   if (!database->dbh)
     {
-      if(!database->dsn)
+      if (!database->dsn)
 	{
-	  ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
-		       "[cms]: No DSN configured");
+	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+			"[cms]: No DSN configured");
 	  return CMS_FAIL;
 	}
-      database->dbh = PQconnectdb(database->dsn);
-      if (PQstatus(database->dbh) == CONNECTION_BAD)
+      database->dbh = PQconnectdb (database->dsn);
+      if (PQstatus (database->dbh) == CONNECTION_BAD)
 	{
-	  ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
-		       "[cms]: Database error '%s'", PQerrorMessage(database->dbh));
-	  PQfinish(database->dbh);
+	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+			"[cms]: Database error '%s'",
+			PQerrorMessage (database->dbh));
+	  PQfinish (database->dbh);
 	  /* FIXME: set connection to NULL */
 	  return CMS_FAIL;
 	}
@@ -54,150 +56,232 @@ dav_cms_db_connect(dav_cms_dbh *database)
   return CMS_OK;
 }
 
+/**
+ * Close the connection to the database backend.
+ * database. 
+ * @param database a pointer to a \c dav_cms_dbh
+ * @returns 0 on success or the appropriate error code in case
+ * of failure.
+ */
 static dav_cms_status_t
-dav_cms_db_disconnect(dav_cms_dbh *db)
+dav_cms_db_disconnect (dav_cms_dbh * db)
 {
   dav_cms_dbh *database;
 
   database = dbh;
 
-  if(!database)
+  if (!database)
     return CMS_FAIL;
 
-  if(database->dbh)
+  if (database->dbh)
     {
-      //PQfinish(database->dbh);
+      /* FIXME: PQfinish(database->dbh); ??? */
     }
   return 0;
 }
 
+/**
+ * Start a transaction in the backend database process.
+ * @returns 0 on success or the appropriate error code.
+ */
 
-static dav_cms_status_t
-dav_cms_start_transaction(void)
+/* FIXME: This should better be named 'dav_cms_ensure_transaction' */
+__inline__ static dav_cms_status_t
+dav_cms_ensure_transaction (dav_db * db)
 {
   PGresult *res;
-  
-  if(!dbh->dbh)
+
+  if ((!db) || (!db->conn))
     return CMS_FAIL;
 
-  /* FIXME: test only */
-  return CMS_OK;
-
-  res = PQexec(dbh->dbh, "BEGIN");
-  if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+  if (!db->DTL)
     {
-      PQclear(res);
+      /* We are in a weired state  */
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_start_transaction in weired transaction state");
       return CMS_FAIL;
     }
-  PQclear(res);
-  return CMS_OK;
+  
+  /* No backend transaction started yet ... */
+  if ((db->DTL) && (!db->PTL))
+    {
+      db->PTL = ON;
+      res = PQexec (db->conn, "BEGIN");
+      if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
+	{
+	  PQclear (res);
+	  return CMS_FAIL;
+	}
+      PQclear (res);
+      return CMS_OK;
+    }
+  else
+    return CMS_OK;
 }
 
-static dav_cms_status_t
-dav_cms_commit(void)
+/**
+ * Commit a transaction in the backend database process.
+ * @returns 0 on success or the appropriate error code.
+ */
+
+__inline__ static dav_cms_status_t
+dav_cms_commit (dav_db * db)
 {
   PGresult *res;
-  
-  if(!dbh->dbh)
-    return CMS_FAIL;
 
-  /* FIXME: test only */
-  return CMS_OK;
-
-  res = PQexec(dbh->dbh, "COMMIT");
-  if (!res || PQresultStatus(res) != PGRES_COMMAND_OK)
+  if ((!db) || (!db->conn))
     {
-      PQclear(res);
       return CMS_FAIL;
     }
-  PQclear(res);
-  return CMS_OK;
+
+  if (!db->DTL)
+    {
+    /* We are in a weired state  */
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_start_transaction in weired transaction state");
+      return CMS_FAIL;
+    }
+
+  if ((db->DTL) && (!db->PTL))
+    {
+      res = PQexec (db->conn, "COMMIT");
+      if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
+	{
+	  db->PTL = OFF;
+	  PQclear (res);
+	  return CMS_FAIL;
+	}
+      PQclear (res);
+      return CMS_OK;
+    }
+  else
+    return CMS_OK;
 }
 
-static dav_cms_status_t
-dav_cms_rollback(void)
+/**
+ * Rollback a transaction in the backend database process.
+ * @returns 0 on success or the appropriate error code.
+ */
+
+__inline__ static dav_cms_status_t
+dav_cms_rollback (dav_db * db)
 {
-  return CMS_OK;
+  PGresult *res;
+
+  if ((!db) || (!db->conn))
+    {
+      return CMS_FAIL;
+    }
+
+  if (!db->DTL)
+    {
+    /* We are in a weired state  */
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
+		    "[cms]: dav_cms_start_transaction in weired transaction state");
+      return CMS_FAIL;
+    }
+
+  if ((db->DTL) && (!db->PTL))
+    {
+      res = PQexec (dbh->dbh, "ROLLBACK");
+      if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
+	{
+	  PQclear (res);
+	  return CMS_FAIL;
+	}
+      PQclear (res);
+      return CMS_OK;
+    }
+  else
+    return CMS_OK;
 }
 
-
-//##########################################################[ DAV PROPS CALLBACKS ]##
+/*=========================================================[ DAV PROPS CALLBACKS ]==*/
 
 dav_error *
-dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb)
+dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
+		 dav_db ** pdb)
 {
-  dav_db           *db;
-  
-  if(!dbh)
-    return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
-		  "Fatal Error: no database connection set up.");
+  dav_db *db;
+
+  if (!dbh)
+    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
+			  "Fatal Error: no database connection set up.");
 
   /* really open database connection */
-  if(dav_cms_db_connect(dbh) != CMS_OK)
-    return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
-		  "Error connecting to property database");
+  if (dav_cms_db_connect (dbh) != CMS_OK)
+    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
+			  "Error connecting to property database");
 
 
-  db = (dav_db *)apr_pcalloc(p, sizeof(*db));
+  db = (dav_db *) apr_pcalloc (p, sizeof (*db));
   db->resource = resource;
-  db->pool     = p;
-  db->conn     = dbh->dbh;
-  db->cursor   = NULL;
+  db->pool = p;
+  db->conn = dbh->dbh;
+  db->cursor = NULL;
   db->pos = db->rows = 0;
   *pdb = db;
 
-  /* FIXME: in reality we would either open a connection to the
-   * postgres backend or begin a transaction on an open connection.
+  /* NOTE: here we only indicate that we should be in a transaction.
+   * The actual transaction is only started the first time we access the
+   * database (either for read/write/delete).
    */
-  if (dav_cms_start_transaction() != CMS_OK)
-    return dav_new_error(p, HTTP_INTERNAL_SERVER_ERROR, 0,
-		  "Error entering transaction context in property database");
+  db->DTL = ON;
+ 
+  if (dav_cms_ensure_transaction (db) != CMS_OK)
+    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
+			  "Error entering transaction context in property database");
 
 
 #ifndef NDEBUG
-  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Opening database '%s'\n", resource->uri);
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		"[cms]: Opening database '%s'\n", resource->uri);
 #endif
   return NULL;
 }
-    
+
 void
-dav_cms_db_close(dav_db *db)
+dav_cms_db_close (dav_db * db)
 {
   const dav_resource *resource = NULL;
 
 #ifndef NDEBUG
   resource = db->resource;
-  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closing database for '%s'\n", resource->uri);
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		"[cms]: Closing database for '%s'\n", resource->uri);
 #endif
 
   /*FIXME: is this a good place to commit? */
- if (dav_cms_commit() != CMS_OK)
-   /* FIXME: how to raise an error ? */
-   (void) dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-		 "Error commiting transaction in property database\n"
-		 "Your operation might not be stored in the backend");
- /* FIXME: Just to keep compiler happy*/
- if(0) dav_cms_rollback();
- if(0) dav_cms_db_disconnect(NULL);
+  if (dav_cms_commit (db) != CMS_OK)
+    /* FIXME: how to raise an error ? */
+    (void) dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			  "Error commiting transaction in property database\n"
+			  "Your operation might not be stored in the backend");
+  /* FIXME: Just to keep compiler happy */
+  if (0)
+    dav_cms_rollback (db);
+  if (0)
+    dav_cms_db_disconnect (NULL);
+  db->DTL = OFF;
 }
 
 dav_error *
-dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
+dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
 {
 
-  PGresult   *res;  
-  char       *buffer, *qtempl, *query;
-  char       *turi;
-  size_t      tlen, qlen;
-  int         ntuples, i;
+  PGresult *res;
+  char *buffer, *qtempl, *query;
+  char *turi;
+  size_t tlen, qlen;
+  int ntuples, i;
 
   /* FIXME: to my understanding, we are asked to insert our namespaces
    * (i.e. the ones we manage for the given resource) into the xml
    * namespace info struct. In realiter we want to fetch all
    * namespaces known to us from the database.
    */
-  dav_xmlns_add(xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
-  
+  dav_xmlns_add (xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
+
   return NULL;
 
   /* Now we select all namespaces defined for the given
@@ -205,66 +289,68 @@ dav_cms_db_define_namespaces(dav_db *db, dav_xmlns_info *xi)
    * prefixes.
    */
   ntuples = 0;
-  qlen    = 0;
-  
-  tlen   = strlen(db->resource->uri);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, db->resource->uri, tlen);
-  turi   = buffer;
-  qlen  += tlen;
-  
-  qtempl = "SELECT namespace FROM facts WHERE uri = '%s'"; 
-  qlen  += strlen(qtempl);
-  query = (char *) apr_palloc(db->pool, qlen);
-  snprintf(query, qlen, qtempl, turi);
-  
+  qlen = 0;
+
+  tlen = strlen (db->resource->uri);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, db->resource->uri, tlen);
+  turi = buffer;
+  qlen += tlen;
+
+  qtempl = "SELECT namespace FROM facts WHERE uri = '%s'";
+  qlen += strlen (qtempl);
+  query = (char *) apr_palloc (db->pool, qlen);
+  snprintf (query, qlen, qtempl, turi);
+
   /* execute the database query and check return value */
-  res   = PQexec(db->conn, query);
-  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
+  res = PQexec (db->conn, query);
+  if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			   "Fatal Error: datbase error during  property storage.");	  
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: datbase error during  property storage.");
     }
-  ntuples = PQntuples(res);
-  for(i = 0; i < ntuples; i++)
+  ntuples = PQntuples (res);
+  for (i = 0; i < ntuples; i++)
     {
       char *namespace, *prefix;
-      
-      namespace = apr_pstrdup(xi->pool, (const char *) PQgetvalue(res, i, 0));
-      prefix    = apr_psprintf(db->pool, "CMS%d", i);
+
+      namespace =
+	apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
+      prefix = apr_psprintf (db->pool, "CMS%d", i);
       //      dav_xmlns_add(xi, prefix, namespace);
       (void) dav_xmlns_add_uri (xi, namespace);
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[Adding ns '%s' as '%s']\n", namespace, prefix);
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
     }
-  PQclear(res);
+  PQclear (res);
   return NULL;
 }
 
 dav_error *
-dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
-			dav_xmlns_info  *xi,
-			apr_text_header *phdr, 
-			int *found)
+dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
+			 dav_xmlns_info * xi,
+			 apr_text_header * phdr, int *found)
 {
-  dav_error  *err = NULL;
-  PGresult   *res;  
-  char       *buffer, *qtempl, *query;
-  char       *turi, *tns, *tname;
-  size_t      tlen, qlen;
-  int         ntuples, i;
+  dav_error *err = NULL;
+  PGresult *res;
+  char *buffer, *qtempl, *query;
+  char *turi, *tns, *tname;
+  size_t tlen, qlen;
+  int ntuples, i;
 
 #ifndef NDEBUG
-  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-	       "[CMS:DEBUG]\tLooking for `%s' : `%s'\n", name->ns, name->name);
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		"[CMS:DEBUG]\tLooking for `%s' : `%s'\n", name->ns,
+		name->name);
 #endif
 
-  if(!db->conn) 
+  if (!db->conn)
     {
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "CLOSED DATABASE\n");
-      return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			   "[CMS:FATAL]\tTrying to access closed database.");
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "CLOSED DATABASE\n");
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "[CMS:FATAL]\tTrying to access closed database.");
     }
-  
+
   /* FIXME: why do we have to call this ourself? */
   /* TEST:  It would be convenient if we could call this
    * only once for all properties of _all_ resources within
@@ -272,93 +358,91 @@ dav_cms_db_output_value(dav_db *db, const dav_prop_name *name,
    * trigger this only once.
    */
   // err = dav_cms_db_define_namespaces(db, xi);
-  if(err) return err;
+  if (err)
+    return err;
 
   /* Special cases for namespaces we know we don't touch */
-  if ((! strcmp (name->ns, "DAV:")) ||
-      (! strcmp (name->ns, "http://apache.org/dav/props/")))
-  {
-    *found = 0;
-    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "[Passing DAV: request]\n");
-    return NULL;
-  }
+  if ((!strcmp (name->ns, "DAV:")) ||
+      (!strcmp (name->ns, "http://apache.org/dav/props/")))
+    {
+      *found = 0;
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		    "[Passing DAV: request]\n");
+      return NULL;
+    }
 
   ntuples = 0;
-  qlen    = 0;
-  
-  tlen   = strlen(db->resource->uri);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, db->resource->uri, tlen);
-  turi   = buffer;      
-  qlen  += tlen;
+  qlen = 0;
 
-  tlen   = strlen(name->ns);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, name->ns, tlen);
-  tns    = buffer;
-  qlen  += tlen;
+  tlen = strlen (db->resource->uri);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, db->resource->uri, tlen);
+  turi = buffer;
+  qlen += tlen;
 
-  tlen   = strlen(name->name);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, name->name, tlen);
-  tname  = buffer; 
-  qlen  += tlen;
+  tlen = strlen (name->ns);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, name->ns, tlen);
+  tns = buffer;
+  qlen += tlen;
+
+  tlen = strlen (name->name);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, name->name, tlen);
+  tname = buffer;
+  qlen += tlen;
 
   qtempl = "SELECT uri, namespace, name, value FROM facts "
-    "WHERE uri = '%s' AND namespace ='%s' AND name = '%s'"; 
-  qlen  += strlen(qtempl);
-  query = (char *) apr_palloc(db->pool, qlen);
-  snprintf(query, qlen, qtempl, turi, tns, tname);
-      
+    "WHERE uri = '%s' AND namespace ='%s' AND name = '%s'";
+  qlen += strlen (qtempl);
+  query = (char *) apr_palloc (db->pool, qlen);
+  snprintf (query, qlen, qtempl, turi, tns, tname);
+
 
   /* execute the database query and check return value */
-  res   = PQexec(db->conn, query);
-  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
+  res = PQexec (db->conn, query);
+  if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			   "Fatal Error: datbase error during  property storage.");	  
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: datbase error during  property storage.");
     }
-  ntuples = PQntuples(res);
-  
-  
+  ntuples = PQntuples (res);
+
+
   /* Iterate over the result and append the data to the output string */
-  for(i = 0; i < ntuples; i++)
+  for (i = 0; i < ntuples; i++)
     {
       const char *prefix, *uri, *tag;
-	
-      uri = PQgetvalue(res, i, 1);
-      tag = PQgetvalue(res, i, 2);
+
+      uri = PQgetvalue (res, i, 1);
+      tag = PQgetvalue (res, i, 2);
       //      prefix = (char *)dav_xmlns_get_prefix(xi, uri);
       prefix = dav_xmlns_add_uri (xi, uri);
       // prefix = (char *) apr_hash_get(xi->uri_prefix, uri, -1);
       //prefix = prefix ? prefix : "ZEIT";
-      buffer = apr_psprintf(db->pool,"<%s:%s>%s</%s:%s>",
-			    prefix,
-			    tag,
-			    PQgetvalue(res, i, 3),
-			    prefix,
-			    tag);
-      apr_text_append(db->pool, phdr, buffer);
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-		   "[URI: '%s' Prefix '%s'] %s\n", uri, prefix, buffer);
+      buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
+			     prefix,
+			     tag, PQgetvalue (res, i, 3), prefix, tag);
+      apr_text_append (db->pool, phdr, buffer);
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		    "[URI: '%s' Prefix '%s'] %s\n", uri, prefix, buffer);
     }
-  PQclear(res);
+  PQclear (res);
   *found = ntuples;
   return NULL;
 }
 
 dav_error *
-dav_cms_db_map_namespaces(dav_db *db,
-			  const apr_array_header_t *namespaces,
-			  dav_namespace_map **mapping)
+dav_cms_db_map_namespaces (dav_db * db,
+			   const apr_array_header_t * namespaces,
+			   dav_namespace_map ** mapping)
 {
   return NULL;
 }
 
-dav_error * 
-dav_cms_db_store(dav_db *db, const dav_prop_name *name,
-	      const apr_xml_elem *elem,
-	      dav_namespace_map *mapping)
+dav_error *
+dav_cms_db_store (dav_db * db, const dav_prop_name * name,
+		  const apr_xml_elem * elem, dav_namespace_map * mapping)
 {
   /* FIXME: we need to check that property with the given name
    * and namespace doesn't allready exist for this URI,
@@ -372,186 +456,188 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
    *    possibly overriding an older value (stored proc.).
    * -# If not, dispatch to the backend providers store function.
    */
-      PGresult *res;
-      char     *buffer;
-      char     *qtempl, *query;
-      char     *uri;
-      char     *value;
-      char     *turi, *tns, *tname, *tval; 
-      size_t    tlen;
-      size_t    qlen;
-      size_t    valsize = 0;
-      
-      if(!dbh)
-	{
-	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			"Fatal Error: no database connection to store property.");	  
-	}
-      
-      /* convert the xml-branch value to its text representation */
-      apr_xml_to_text(db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
-		      (const char **) &value, &valsize);
-      if(value)
-	value[valsize] = (char) 0;
-      
-      /* From here on we collect the neccessary tokens, sql-escape them
-       * and record the token length to calculate the maximum length of 
-       * the query string.
-       */
-      qlen   = 0;
-      
-      uri    = (char *) db->resource->uri;
-      tlen   = strlen(uri);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, uri, tlen);
-      turi   = buffer;      
-      qlen  += tlen;
+  PGresult *res;
+  char *buffer;
+  char *qtempl, *query;
+  char *uri;
+  char *value;
+  char *turi, *tns, *tname, *tval;
+  size_t tlen;
+  size_t qlen;
+  size_t valsize = 0;
 
-      tlen   = strlen(name->ns);
-      /* FIXME: mod_dav should check for empty namespace itself */
-      if(name->ns[0] == 0)
-	{
-	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			       "Fatal Error: NULL namespace not allowed.");
-	}
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, name->ns, tlen);
-      tns    = buffer;
-      qlen  += tlen;
+  if (!dbh)
+    {
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: no database connection to store property.");
+    }
 
-      tlen   = strlen(name->name);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, name->name, tlen);
-      tname  = buffer; 
-      qlen  += tlen;
+  /* convert the xml-branch value to its text representation */
+  apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
+		   (const char **) &value, &valsize);
+  if (value)
+    value[valsize] = (char) 0;
 
-      tlen   = strlen(value);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, value, tlen);
-      tval   = buffer;
-      qlen  += tlen;
-      
-      qtempl = "SELECT assert('%s', '%s', '%s', '%s')";
-      qlen  += strlen(qtempl);
-      query = (char *) apr_palloc(db->pool, qlen);
-      snprintf(query, qlen, qtempl, turi, tns, tname, tval);
-      
-      /* execute the database query and check return value */
-      res   = PQexec(dbh->dbh, query);
-      if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
-	{
-	  PQclear(res);
-	  return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			       "Fatal Error: datbase error during  property storage.");	  
-	}
-      PQclear(res);
+  /* From here on we collect the neccessary tokens, sql-escape them
+   * and record the token length to calculate the maximum length of 
+   * the query string.
+   */
+  qlen = 0;
 
-      return NULL;
+  uri = (char *) db->resource->uri;
+  tlen = strlen (uri);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, uri, tlen);
+  turi = buffer;
+  qlen += tlen;
+
+  tlen = strlen (name->ns);
+  /* FIXME: mod_dav should check for empty namespace itself */
+  if (name->ns[0] == 0)
+    {
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: NULL namespace not allowed.");
+    }
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, name->ns, tlen);
+  tns = buffer;
+  qlen += tlen;
+
+  tlen = strlen (name->name);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, name->name, tlen);
+  tname = buffer;
+  qlen += tlen;
+
+  tlen = strlen (value);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, value, tlen);
+  tval = buffer;
+  qlen += tlen;
+
+  qtempl = "SELECT assert('%s', '%s', '%s', '%s')";
+  qlen += strlen (qtempl);
+  query = (char *) apr_palloc (db->pool, qlen);
+  snprintf (query, qlen, qtempl, turi, tns, tname, tval);
+
+  /* execute the database query and check return value */
+  res = PQexec (dbh->dbh, query);
+  if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+    {
+      PQclear (res);
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: datbase error during  property storage.");
+    }
+  PQclear (res);
+
+  return NULL;
 }
 
 dav_error *
-dav_cms_db_remove(dav_db *db, const dav_prop_name *name)
+dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
 {
   /* FIXME: how should we react if res.count <> 1? 
    * We also need to do better error checking.
    */
 
-  if(dbh)
+  if (dbh)
     {
       PGresult *res;
-      char     *buffer;
-      char     *qtempl, *query;
-      char     *uri;
+      char *buffer;
+      char *qtempl, *query;
+      char *uri;
 
-      char     *turi, *tns, *tname; 
-      size_t    tlen;
-      size_t    qlen;
-      
-      qlen   = 0;
+      char *turi, *tns, *tname;
+      size_t tlen;
+      size_t qlen;
 
-      uri    = (char *) db->resource->uri;
-      tlen   = strlen(uri);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, uri, tlen);
-      turi   = buffer;      
-      qlen  += tlen;
+      qlen = 0;
 
-      tlen   = strlen(name->ns);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, name->ns, tlen);
-      tns    = buffer;
-      qlen  += tlen;
+      uri = (char *) db->resource->uri;
+      tlen = strlen (uri);
+      buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+      tlen = PQescapeString (buffer, uri, tlen);
+      turi = buffer;
+      qlen += tlen;
 
-      tlen   = strlen(name->name);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, name->name, tlen);
-      tname  = buffer; 
-      qlen  += tlen;
-      
-      qtempl = "DELETE FROM facts WHERE uri = '%s' AND  namespace = '%s' AND  name = '%s'";
-      qlen  += strlen(qtempl);
-      query = (char *) apr_palloc(db->pool, qlen);
-      snprintf(query, qlen, qtempl, turi, tns, tname);
+      tlen = strlen (name->ns);
+      buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+      tlen = PQescapeString (buffer, name->ns, tlen);
+      tns = buffer;
+      qlen += tlen;
 
-      res   = PQexec(dbh->dbh, query);
+      tlen = strlen (name->name);
+      buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+      tlen = PQescapeString (buffer, name->name, tlen);
+      tname = buffer;
+      qlen += tlen;
+
+      qtempl =
+	"DELETE FROM facts WHERE uri = '%s' AND  namespace = '%s' AND  name = '%s'";
+      qlen += strlen (qtempl);
+      query = (char *) apr_palloc (db->pool, qlen);
+      snprintf (query, qlen, qtempl, turi, tns, tname);
+
+      res = PQexec (dbh->dbh, query);
       /*FIXME: errorchecking here */
-      PQclear(res);
+      PQclear (res);
     }
   return NULL;
 }
 
 int
-dav_cms_db_exists(dav_db *db, const dav_prop_name *name)
+dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
 {
-  PGresult *res;  
-  char     *buffer, *qtempl, *query;
-  char     *turi, *tns, *tname;
-  size_t    tlen, qlen;
-  int       exists;
-    
+  PGresult *res;
+  char *buffer, *qtempl, *query;
+  char *turi, *tns, *tname;
+  size_t tlen, qlen;
+  int exists;
+
   /* FIXME: is this a joke? No way to signal an error condition? */
-  if(!dbh)
+  if (!dbh)
     {
       return 0;
     }
-  
-  qlen   = 0;
-  
-  tlen   = strlen(db->resource->uri);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, db->resource->uri, tlen);
-  turi   = buffer;      
-  qlen  += tlen;
 
-  tlen   = strlen(name->ns);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, name->ns, tlen);
-  tns    = buffer;
-  qlen  += tlen;
+  qlen = 0;
 
-  tlen   = strlen(name->name);
-  buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-  tlen   = PQescapeString(buffer, name->name, tlen);
-  tname  = buffer; 
-  qlen  += tlen;
+  tlen = strlen (db->resource->uri);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, db->resource->uri, tlen);
+  turi = buffer;
+  qlen += tlen;
+
+  tlen = strlen (name->ns);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, name->ns, tlen);
+  tns = buffer;
+  qlen += tlen;
+
+  tlen = strlen (name->name);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, name->name, tlen);
+  tname = buffer;
+  qlen += tlen;
 
   qtempl = "SELECT * FROM facts "
-    "WHERE uri = '%s' AND namespace ='%s' AND 'name = '%s'"; 
-  qlen  += strlen(qtempl);
-  query = (char *) apr_palloc(db->pool, qlen);
-  snprintf(query, qlen, qtempl, turi, tns, tname);
-      
+    "WHERE uri = '%s' AND namespace ='%s' AND 'name = '%s'";
+  qlen += strlen (qtempl);
+  query = (char *) apr_palloc (db->pool, qlen);
+  snprintf (query, qlen, qtempl, turi, tns, tname);
+
 
   /* execute the database query and check return value */
-  res   = PQexec(dbh->dbh, query);
-  if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
+  res = PQexec (dbh->dbh, query);
+  if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-		    "Fatal Error: datbase error during  property existance check.");	  
+      dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+		     "Fatal Error: datbase error during  property existance check.");
     }
-  exists = PQntuples(res);
-  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "Existance check: '%d'\n", exists); 
-  PQclear(res);
+  exists = PQntuples (res);
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "Existance check: '%d'\n",
+		exists);
+  PQclear (res);
   return exists;
 }
 
@@ -565,12 +651,11 @@ dav_cms_db_exists(dav_db *db, const dav_prop_name *name)
  * @param pname
  *   This dav_prop_name struct should be filled with the 
  *   name (and namespace) of the first property we provide.
- * @tip 
- *   We are supposed to set both namespace and name to NULL
+ * @tip We are supposed to set both namespace and name to NULL
  *   to indicate that we are finished with all properties.
- */ 
+ */
 dav_error *
-dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
+dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 {
   pname->ns = pname->name = NULL;
 
@@ -580,36 +665,35 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
   if (db->cursor == NULL)
     {
       PGresult *res;
-      char     *buffer, *qtempl, *query;
-      char     *turi;
-      size_t    tlen, qlen;
+      char *buffer, *qtempl, *query;
+      char *turi;
+      size_t tlen, qlen;
 
-      
-      if(!dbh)
-	return dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			"Fatal Error: not connected to database.");	  
 
-      qlen   = 0;
+      if (!dbh)
+	return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			      "Fatal Error: not connected to database.");
 
-      tlen   = strlen(db->resource->uri);
-      buffer = (char *) apr_palloc(db->pool, 2 *(tlen + 1));
-      tlen   = PQescapeString(buffer, db->resource->uri, tlen);
-      turi   = buffer;      
-      qlen  += tlen;
+      qlen = 0;
 
-      qtempl = "SELECT namespace, name, value FROM facts "
-	       "WHERE uri = '%s'"; 
-      qlen  += strlen(qtempl);
-      query = (char *) apr_palloc(db->pool, qlen);
-      snprintf(query, qlen, qtempl, turi);
-      
+      tlen = strlen (db->resource->uri);
+      buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+      tlen = PQescapeString (buffer, db->resource->uri, tlen);
+      turi = buffer;
+      qlen += tlen;
+
+      qtempl = "SELECT namespace, name, value FROM facts " "WHERE uri = '%s'";
+      qlen += strlen (qtempl);
+      query = (char *) apr_palloc (db->pool, qlen);
+      snprintf (query, qlen, qtempl, turi);
+
 
       /* execute the database query and check return value */
-      res   = PQexec(dbh->dbh, query);
-      if (!res || PQresultStatus(res) != PGRES_TUPLES_OK)
+      res = PQexec (dbh->dbh, query);
+      if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
 	{
-	  dav_new_error(db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			"Fatal Error: datbase error during  property storage.");	  
+	  dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			 "Fatal Error: datbase error during  property storage.");
 	}
 
       /* SIDE NOTE: is this planed at all? Different properties
@@ -617,64 +701,65 @@ dav_cms_db_first_name(dav_db *db, dav_prop_name *pname)
        */
       /* move to the first entry */
       db->cursor = res;
-      db->rows   = PQntuples(res); 
-      db->pos    = 0;
+      db->rows = PQntuples (res);
+      db->pos = 0;
     }
 
-  
+
   /* now we start iterating over the entries in the property table.
    * If we are at the end of our result set we set pname->ns and
    * pname->name to NULL to indicate 'no more properties'.
    */
-  if (db->pos == db->rows) 
+  if (db->pos == db->rows)
     {
       pname->ns = pname->name = NULL;
-      PQclear(db->cursor);
+      PQclear (db->cursor);
       db->cursor = NULL, db->pos = db->rows = 0;
     }
   else
     {
-      /*FIXME: do we need to insert namespaces or their prefix here */   
-      pname->ns   =  PQgetvalue(db->cursor, db->pos, 0);
-      pname->name = (const char*) PQgetvalue(db->cursor, db->pos, 1);
-      
+      /*FIXME: do we need to insert namespaces or their prefix here */
+      pname->ns = PQgetvalue (db->cursor, db->pos, 0);
+      pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
+
       db->pos++;
     }
   return NULL;
 }
 
 dav_error *
-dav_cms_db_next_name(dav_db *db, dav_prop_name *pname)
+dav_cms_db_next_name (dav_db * db, dav_prop_name * pname)
 {
-if (db->pos == db->rows) 
+  if (db->pos == db->rows)
     {
-      pname->ns  = pname->name = NULL;
-      PQclear(db->cursor);
+      pname->ns = pname->name = NULL;
+      PQclear (db->cursor);
       db->cursor = NULL, db->pos = db->rows = 0;
     }
   else
     {
-      /*FIXME: do we need to insert namespaces or their prefix here */   
-      pname->ns   =  PQgetvalue(db->cursor, db->pos, 0);
-      pname->name = (const char*) PQgetvalue(db->cursor, db->pos, 1);
-      
+      /*FIXME: do we need to insert namespaces or their prefix here */
+      pname->ns = PQgetvalue (db->cursor, db->pos, 0);
+      pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
+
       db->pos++;
     }
   return NULL;
 }
 
+/* FIXME: i still don't grasp the concept of this! */
 dav_error *
-dav_cms_db_get_rollback(dav_db *db, const dav_prop_name *name,
-			dav_deadprop_rollback **prollback)
+dav_cms_db_get_rollback (dav_db * db, const dav_prop_name * name,
+			 dav_deadprop_rollback ** prollback)
 {
   return NULL;
 }
 
 dav_error *
-dav_cms_db_apply_rollback(dav_db *db,
-			 dav_deadprop_rollback *rollback)
+dav_cms_db_apply_rollback (dav_db * db, dav_deadprop_rollback * rollback)
 {
-  return NULL;
+  dav_cms_rollback(db);
+  db->DTL = OFF;
 }
 
 

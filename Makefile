@@ -1,5 +1,5 @@
 # APXS = @apxs@
-APXS = /usr/bin/apxs
+APXS = /usr/local/apache2/bin/apxs
 APR_CONFIG = apr-config
 PG_CONFIG  = pg_config
 
@@ -14,7 +14,7 @@ LDFLAGS  = `$(APR_CONFIG) --link-ld --libs` \
            -L `$(PG_CONFIG) --libdir` -lpq
 
 DESTDIR  = `$(APXS) -q LIBEXECDIR`
- 
+
 all: $(SRC) $(HEADERS)
 	$(APXS) -I$(INCLUDES) $(LDFLAGS) -c $(SRC)
 

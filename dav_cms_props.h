@@ -1,5 +1,5 @@
 
-#ifndef _DAV_CMS__PROPS_H_
+#ifndef _DAV_CMS_PROPS_H_
 #define _DAV_CMS_PROPS_H_
 
 /**
@@ -24,19 +24,30 @@ struct dav_db {
   apr_pool_t         *pool;
   apr_hash_t         *props;   /* the resource's properties that */
   apr_hash_index_t   *hi;      /* we are sequencing over         */
+
   /* Ok, this _is_ just testcode. Can we pass a resultset arround?
    * My fear is that transactions/cursors stay open.
    */
   PGconn             *conn;
   PGresult           *cursor;
+  
   int                 rows;
   int                 pos;
+  /* Support for lazy transaction handling
+   * should_transact is set whenever mod_dav thinks
+   * a transaction needs to be started. The in_transact
+   * is set whenever mod_dav_cms actually opens a transaction.
+   */
+  int                 DTL : 1;
+  int                 PTL : 1;
 };
 
 
 extern  const dav_hooks_propdb dav_cms_hooks_propdb;
-  /**
-   * Prototypes for the dav_cms property database hooks */
+
+  /*
+   * Prototypes for the dav_cms property database hooks 
+   */
 dav_error *
 dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb);
     
