@@ -97,8 +97,12 @@ dav_cms_child_destroy(void *ctxt)
 #endif
 
   if(dbh)
-    dbh = NULL;
-
+    {
+      if(dbh->dbh)
+	PQfinish(dbh->dbh);
+      dbh->dbh = NULL;
+      dbh = NULL;
+    }
   return APR_SUCCESS;
 }
 

@@ -38,7 +38,7 @@ extern "C" {
    *
    */
   typedef struct {
-    char   *dsn;                /**< Database connection string.              */
+    char   *dsn;                /**< Database connection string.  */
     PGconn *dbh;                /**< Open database connection handle or NULL. */
     /** FIXME: do we need a transaction lock ? **/
   } dav_cms_dbh;
