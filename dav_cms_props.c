@@ -49,14 +49,18 @@ dav_cms_db_connect(dav_cms_dbh *database)
 }
 
 static dav_cms_status_t
-dav_cms_db_disconnect(dav_cms_dbh *database)
+dav_cms_db_disconnect(dav_cms_dbh *db)
 {
+  dav_cms_dbh *database;
+
+  database = dbh;
+
   if(!database)
     return CMS_FAIL;
 
   if(database->dbh)
     {
-      PQfinish(database->dbh);
+      //PQfinish(database->dbh);
     }
   return 0;
 }
@@ -145,7 +149,7 @@ dav_cms_db_close(dav_db *db)
 
 #ifndef NDEBUG
   resource = db->resource;
-  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closing database '%s'\n", resource->uri);
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closing database for '%s'\n", resource->uri);
 #endif
 
   /*FIXME: is this a good place to commit? */
@@ -243,20 +247,64 @@ dav_cms_db_store(dav_db *db, const dav_prop_name *name,
    *    possibly overriding an older value (stored proc.).
    * -# If not, dispatch to the backend providers store function.
    */
-  apr_size_t   buffsize = 0;
-  char        *buffer   = NULL;
+  char        *value   = NULL;
+  apr_size_t   valsize = 0;
 
   apr_xml_to_text(db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
-		  (const char **) &buffer, &buffsize);
-  if(buffer)
-    buffer[buffsize] = (char) 0;
+		  (const char **) &value, &valsize);
+  if(value)
+    value[valsize] = (char) 0;
 #ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, 
-	       "[cms]: Storing '%s : %s'\n\t%s", name->ns, name->name, buffer);
+	       "[cms]: Storing '%s : %s'\n\t%s", name->ns, name->name, value);
 #endif
 
   /* FIXME: store the value in the database */
   // return (*dav_backend_provider->propdb->store)(db, name, elem, mapping);
+
+  if(dbh)
+    {
+      PGresult *res;
+      char     *buffer;
+      char     *qtempl, *query;
+      char     *uri;
+      char     *turi, *tns, *tname, *tval; 
+      size_t    tlen;
+      size_t    qlen;
+      
+      qlen   = 0;
+
+      uri    = (char *) db->resource->uri;
+      tlen   = strlen(uri);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, uri, tlen);
+      turi   = buffer;      
+      qlen  += tlen;
+
+      tlen   = strlen(name->ns);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, name->ns, tlen);
+      tns    = buffer;
+      qlen  += tlen;
+
+      tlen   = strlen(name->name);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, name->name, tlen);
+      tname  = buffer; 
+      qlen  += tlen;
+
+      tlen   = strlen(value);
+      buffer = (char *) ap_palloc(db->pool, 2 *(tlen + 1));
+      tlen   = PQescapeString(buffer, value, tlen);
+      tval   = buffer;
+      qlen  += tlen;
+      
+      qtempl = "INSERT INTO attributes (uri, namespace, name, value) VALUES ('%s', '%s', '%s', '%s')";
+      qlen  += strlen(qtempl);
+      query = (char *) ap_palloc(db->pool, qlen);
+      snprintf(query, qlen, qtempl, turi, tns, tname, tval);
+      res   = PQexec(dbh->dbh, query);
+    }
   return NULL;
 }
 

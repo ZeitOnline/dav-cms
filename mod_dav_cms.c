@@ -35,8 +35,8 @@
 /* FIXME: This _will_ break terribly if used
  * in threaded code!
  */
-dav_cms_dbh _dbh;
-dav_cms_dbh *dbh = &_dbh;
+
+dav_cms_dbh *dbh;
 
 //FIXME: needs to be visible to 'dav_cms_props.c'
 const dav_provider *dav_backend_provider;
@@ -121,15 +121,32 @@ dav_cms_child_destroy(void *ctxt)
  * We register a cleanup function to ensure propper releasing of all
  * database related resources.
  */
-static int dav_cms_init(apr_pool_t *pchild,           
+static int dav_cms_init(apr_pool_t *pchild,
 			apr_pool_t *plog, 
 			apr_pool_t *ptemp,
-			server_rec *s)
+			server_rec *server)
 {
-  ap_add_version_component(pchild, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION);
+  dav_cms_server_conf *conf;
 
+  ap_add_version_component(pchild, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION);
+  
+  /* FIXME: how do i get my hands on 'conf' */
+  conf = (dav_cms_server_conf *)ap_get_module_config(server->module_config, &dav_cms_module);
   /* Allocate our database connection struct from the child pool ... */
-  dbh = apr_palloc(pchild, sizeof(dav_cms_dbh));
+
+  if(!dbh)
+    dbh = (dav_cms_dbh *)apr_palloc(pchild, sizeof(dav_cms_dbh));
+  
+  if(dbh)
+    {
+      
+      dbh->dsn = apr_pstrdup(pchild, conf->dsn);
+      dbh->dbh = NULL;
+    } 
+  else 
+    {
+      exit(255);
+    }
 
   /* ... and register a cleanup */
   apr_pool_cleanup_register(pchild, NULL, 
@@ -223,12 +240,15 @@ static const char *dav_cms_dsn_cmd(cmd_parms  *cmd,
 				   void       *config,
 				   const char *arg1)
 {
-  /* FIXME: will this pool last until child destruction? */
-  dbh->dsn = apr_pstrdup(cmd->pool, arg1);
-#ifndef NDEBUG
+
+  dav_cms_server_conf *conf;
+  
+  conf = (dav_cms_server_conf *)ap_get_module_config(cmd->server->module_config, &dav_cms_module);
+  conf->dsn = apr_pstrdup(cmd->pool, arg1);
+  //#ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-	       "[CMS]: Request to use %s as a database server\n", arg1);
-#endif
+	       "[CMS]: Request to use %s as a database server\n", conf->dsn);
+  //#endif
   return NULL;
 }
 
@@ -246,8 +266,8 @@ static const command_rec dav_cms_cmds[] =
   /* per server */
   AP_INIT_TAKE1("CMS:Backend", dav_cms_backend_cmd, NULL, RSRC_CONF,
                 "specify the name of the DAV backend module to use "),
-  AP_INIT_TAKE1("CMS:DSN", dav_cms_dsn_cmd, NULL, RSRC_CONF,
-                "specify DSN of the postgresql database to use "),
+  AP_INIT_TAKE1("CMS:DSN",     dav_cms_dsn_cmd,     NULL, RSRC_CONF,
+                "specify DSN of the (postgresql) database to use "),
   { NULL }
 };
 

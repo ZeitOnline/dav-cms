@@ -57,6 +57,7 @@ extern "C" {
    */
   typedef struct {
     char        *backend;              /**< The name of the backend provider.           */
+    char        *dsn;                  /**< The database connection settings for this server */
   } dav_cms_server_conf;
   
   /**
