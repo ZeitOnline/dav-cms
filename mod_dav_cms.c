@@ -1,6 +1,6 @@
 /**
  * @package dav_cms
- * @file    mod_dav_cms.c
+ * Filespec: $Id$
  */
 
 /* 
@@ -31,6 +31,8 @@
 #include "mod_dav_cms.h"
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
+
+static volatile char ident_string[] = "$id";
 
 /* FIXME: _no_ global/statics allowed! */
 /* FIXME: This _will_ break terribly if used
@@ -137,6 +139,9 @@ static int dav_cms_init(apr_pool_t *pchild,
   
   /* FIXME: how do i get my hands on 'conf' */
   conf = (dav_cms_server_conf *)ap_get_module_config(server->module_config, &dav_cms_module);
+  if(!conf)
+    printf("No configuration data found\n");
+
   /* Allocate our database connection struct from the child pool ... */
 
   if(!dbh)
@@ -144,7 +149,7 @@ static int dav_cms_init(apr_pool_t *pchild,
   
   if(dbh)
     {
-      
+      printf("DSN is: %s\n", conf->dsn); 
       dbh->dsn = apr_pstrdup(pchild, conf->dsn);
       dbh->dbh = NULL;
     } 

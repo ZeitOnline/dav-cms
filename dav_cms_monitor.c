@@ -1,5 +1,6 @@
 /**
  * @package dav_cms
+ * Filespec: $Id$
  */
 
 #include <httpd.h>
@@ -55,6 +56,10 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
     }
   if(!dbh->dbh)
     {
+      /* FIXME: we should factor this out into a 
+       * call 'getConnection()' that'll either return an existing
+       * connection or try to (re)connect.
+       */
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "no connection");
       dbh->dbh = PQconnectdb(dbh->dsn);
       if(!dbh->dbh)
