@@ -137,7 +137,7 @@ dav_cms_ensure_transaction (dav_db * db)
   if (!db)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_ensure_transacteion in weired context (NULL db).");
+		    "[cms]: dav_cms_ensure_transaction in weired context (NULL db).");
       return CMS_FAIL;
     }
   if (!db->DTL)
@@ -428,13 +428,13 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   /* Special cases for namespaces we know we don't touch */
   if ((!strcmp (name->ns, "DAV:")) ||
       (!strcmp (name->ns, "http://apache.org/dav/props/")))
-    {
+  {
       *found = 0;
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[Passing DAV: request]\n");
       return NULL;
-    }
-
+  }
+  
   ntuples = 0;
   qlen    = 0;
 

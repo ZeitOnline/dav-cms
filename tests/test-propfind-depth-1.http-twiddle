@@ -1,0 +1,5 @@
+PROPFIND /cms/work/2006/43/ HTTP/1.1
+Host: localhost
+Depth: 1
+
+
