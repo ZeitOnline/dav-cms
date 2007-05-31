@@ -72,12 +72,7 @@ dav_cms_db_connect (dav_cms_dbh * database)
 	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
-
-      if (dbtrace = fopen ("/tmp/mod-dav-cms-db.trace", "a"))
-	{
-	  PQtrace (database->dbh, dbtrace);
-	}
-
+    
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[cms]: Connected to backend with the following options:" );
       {
@@ -115,11 +110,11 @@ dav_cms_db_disconnect (dav_cms_dbh * db)
 
   if (database->dbh)
     {
-      /*FIXME: will this be called too often ? 
-       *  PQfinish (database->dbh);
-       *  database->dbh = NULL;
-       */
-      ;
+        /*FIXME: will this be called too often ? 
+         *  PQfinish (database->dbh);
+         *  database->dbh = NULL;
+         */
+        ;
     }
   return CMS_OK;
 }
@@ -154,8 +149,6 @@ dav_cms_ensure_transaction (dav_db * db)
     return CMS_FAIL;
     }
 
-
- 
   if (db->PTL == OFF)  /* No backend transaction started yet ... */
     {
       res = PQexec (db->conn, "BEGIN -- property changes");
@@ -169,7 +162,7 @@ dav_cms_ensure_transaction (dav_db * db)
       return CMS_OK;
     }
   else           /* backend is allready in transaction */
-    return CMS_OK;
+      return CMS_OK;
 }
 
 /**
@@ -239,7 +232,7 @@ dav_cms_rollback (dav_db * db)
     {
     /* We are in a weired state  */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_start_transaction in weired transaction state");
+		    "[cms]: dav_cms_rollback in weired transaction state");
       return CMS_FAIL;
     }
 
@@ -372,9 +365,10 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
 			    "Fatal Error: datbase error during  property storage.");
     }
   ntuples = PQntuples (res);
+
   for (i = 0; i < ntuples; i++)
     {
-      char *namespace, *prefix;
+      const char *namespace, *prefix;
 
       namespace =
 	apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
@@ -382,7 +376,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
        * prefix = apr_psprintf (db->pool, "CMS%d", i);
        * dav_xmlns_add(xi, prefix, namespace);
        */
-      (void) dav_xmlns_add_uri (xi, namespace);
+      prefix = dav_xmlns_add_uri (xi, namespace);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
     }
@@ -421,7 +415,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
    * one request (read: a propget/depth=1 on a collection should
    * trigger this only once.
    */
-  // err = dav_cms_db_define_namespaces(db, xi);
+  //err = dav_cms_db_define_namespaces(db, xi);
   if (err)
     return err;
 
@@ -480,14 +474,14 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
 
       uri = PQgetvalue (res, i, 1);
       tag = PQgetvalue (res, i, 2);
-      //prefix = (char *)dav_xmlns_get_prefix(xi, uri);
+      // prefix = (char *)dav_xmlns_get_prefix(xi, uri);
       prefix = (char *) dav_xmlns_add_uri (xi, uri);
       buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
 			     prefix,
 			     tag, PQgetvalue (res, i, 3), prefix, tag);
       apr_text_append (db->pool, phdr, buffer);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[URI: '%s 'Prefix '%s'] %s\n", uri, prefix, buffer);
+		    "[URI: '%s 'Prefix '%s'] %s", uri, prefix, buffer);
     }
   PQclear (res);
   *found = ntuples;
