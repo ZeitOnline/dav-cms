@@ -55,34 +55,29 @@ dav_cms_db_connect (dav_cms_dbh * database)
 
   if (!database->dbh)
     {
-      /* try to connect */
       if (!database->dsn)
 	{
 	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
 			"[cms]: No DSN configured");
 	  return CMS_FAIL;
 	}
+      /* try to connect */
       database->dbh = PQconnectdb (database->dsn);
       if (PQstatus (database->dbh) == CONNECTION_BAD)
 	{
-	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-			"[cms]: Database error '%s'",
-			PQerrorMessage (database->dbh));
+	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "[cms]: Database error '%s'", PQerrorMessage (database->dbh));
 	  PQfinish (database->dbh);
 	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
     
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[cms]: Connected to backend with the following options:" );
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "[cms]: Connected to backend with the following options:" );
       {
 	PQconninfoOption *info, *i;
-
 	info = i = PQconndefaults ();
 	while (info->keyword)
 	  {
-	    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-			  "\t'%s'\t=\t'%s'", (info->keyword), (info->val));
+	    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "\t'%s'\t=\t'%s'", (info->keyword), (info->val));
 	    info++;
 	  }
 	PQconninfoFree (i);
@@ -337,7 +332,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
    */
   dav_xmlns_add (xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
 
-  return NULL;
+  //return NULL;
 
   /* Now we select all namespaces defined for the given
    * URI and inset them into the namespace map with generated
@@ -351,12 +346,12 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   tlen = PQescapeString (buffer, db->resource->uri, tlen);
   turi = buffer;
   qlen += tlen;
-
+  
   qtempl = "SELECT DISTINCT namespace FROM facts WHERE uri = '%s'";
   qlen += strlen (qtempl);
   query = (char *) apr_palloc (db->pool, qlen);
   snprintf (query, qlen, qtempl, turi);
-
+  
   /* execute the database query and check return value */
   res = PQexec (db->conn, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
@@ -371,11 +366,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
       const char *namespace, *prefix;
 
       namespace =
-	apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
-      /* We don't care about the prefix:
-       * prefix = apr_psprintf (db->pool, "CMS%d", i);
-       * dav_xmlns_add(xi, prefix, namespace);
-       */
+          apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
       prefix = dav_xmlns_add_uri (xi, namespace);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
@@ -383,6 +374,71 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   PQclear (res);
   return NULL;
 }
+
+/* NEW INTERFACE 
+
+PGresult *PQexecParams(PGconn *conn,
+                       const char *command,
+                       int nParams,
+                       const Oid *paramTypes,
+                       const char * const *paramValues,
+                       const int *paramLengths,
+                       const int *paramFormats,
+                       int resultFormat);
+
+*/
+
+dav_error *
+dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
+{
+
+  PGresult *res;
+  char * params[1];
+  int ntuples, i;
+
+  /* FIXME: to my understanding, we are asked to insert our namespaces
+   * (i.e. the ones we manage for the given resource) into the xml
+   * namespace info struct. In realiter we want to fetch all
+   * namespaces known to us from the database.
+   */
+  dav_xmlns_add (xi, DAV_CMS_NS_PREFIX, DAV_CMS_NS);
+
+
+  /* Now we select all namespaces defined for the given
+   * URI and inset them into the namespace map with generated
+   * prefixes.
+   */
+  ntuples   = 0;
+  params[0] = db->resource->uri;
+  
+  /* execute the database query and check return value */
+
+  res = PQexecParams(db->conn, "SELECT DISTINCT namespace FROM facts WHERE uri = $1",
+                     1, NULL, params, NULL, NULL, 0); 
+
+  if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+    {
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+			    "Fatal Error: datbase error during  property operation.");
+    }
+  ntuples = PQntuples (res);
+
+  for (i = 0; i < ntuples; i++)
+    {
+      const char *namespace, *prefix;
+
+      namespace =
+          apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
+      prefix = dav_xmlns_add_uri (xi, namespace);
+#ifndef NDEBUG
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
+#endif
+    }
+  PQclear (res);
+  return NULL;
+}
+
 
 dav_error *
 dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
@@ -414,10 +470,12 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
    * only once for all properties of _all_ resources within
    * one request (read: a propget/depth=1 on a collection should
    * trigger this only once.
+   *
+   *
+   * err = dav_cms_db_define_namespaces(db, xi);
+   * if (err)  return err;
+   *
    */
-  //err = dav_cms_db_define_namespaces(db, xi);
-  if (err)
-    return err;
 
   /* Special cases for namespaces we know we don't touch */
   if ((!strcmp (name->ns, "DAV:")) ||
@@ -430,7 +488,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   }
   
   ntuples = 0;
-  qlen    = 0;
+  qlen      = 0;
 
   tlen = strlen (db->resource->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
@@ -470,15 +528,28 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   /* Iterate over the result and append the data to the output string */
   for (i = 0; i < ntuples; i++)
     {
-      const char *prefix, *uri, *tag;
+        const char *prefix, *uri, *tag, *value;
 
-      uri = PQgetvalue (res, i, 1);
-      tag = PQgetvalue (res, i, 2);
-      // prefix = (char *)dav_xmlns_get_prefix(xi, uri);
+      uri   = PQgetvalue (res, i, 1);
+      tag   = PQgetvalue (res, i, 2);
+      value = PQgetvalue (res, i, 3);
       prefix = (char *) dav_xmlns_add_uri (xi, uri);
-      buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
-			     prefix,
-			     tag, PQgetvalue (res, i, 3), prefix, tag);
+
+      /* Ok, this is a quick hack: it seems as if the prefix we get here isn't
+       * allways valid ... hmm, we `fix' it be emitting our own xmlns
+       * declatation ...
+       *
+       * buffer = apr_psprintf (db->pool, "<%s:%s xmlns:%s='%s'>%s</%s:%s>",
+       *		      prefix, tag,
+       *                      prefix, uri,
+       *                      value, prefix, tag);
+       *                      
+       */
+
+      buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>\n",
+			     prefix, tag,
+                             value, prefix, tag);
+
       apr_text_append (db->pool, phdr, buffer);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[URI: '%s 'Prefix '%s'] %s", uri, prefix, buffer);
@@ -488,6 +559,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   return NULL;
 }
 
+/* FIXME: what's this supposed to do */
 dav_error *
 dav_cms_db_map_namespaces (dav_db * db,
 			   const apr_array_header_t * namespaces,
@@ -519,32 +591,32 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
   size_t tlen;
   size_t qlen;
   size_t valsize = 0;
-  
+   
+  /* NOTE: mod_dav should check for empty namespace itself 
+   * Check for invalid or zero-lenght namespace 
+   */
+  if(name->ns==NULL || strlen(name->ns)==0) {
+       return dav_new_error(db->pool, HTTP_BAD_REQUEST, 0,
+			    "Fatal Error: NULL namespace not allowed.");
+  }
+
   /* Fastpath: Ignore requests for DAV-properties */
   if (! strcmp (name->ns, "DAV:"))
   {
     return NULL;
   }
- 
-  /* NOTE: mod_dav should check for empty namespace itself */
-  if (name->ns[0] == 0)
-    {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			    "Fatal Error: NULL namespace not allowed.");
-    }
-  
+
   if (!dbh)
     {
       return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			    "Fatal Error: no database connection to store property.");
     }
 
-  /* Storage needs expicit backnd transactions */
+  /* Storage needs expicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
     return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			  "Error entering transaction context in property database");
 
-  
   /* convert the xml-branch value to its text representation */
   apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
 		   (const char **) &value, &valsize);
@@ -608,7 +680,7 @@ dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
    * We also need to do better error checking.
    */
 
-  /* Removal needs expicit backnd transactions */
+  /* Removal needs expicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
     return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
 			  "Error entering transaction context in property database");
@@ -715,6 +787,13 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
 }
 
 /**
+ * The following two functions (dav_cmd_db_first_name and
+ * dav_cms_db_next_name) are called from mod_dav during ALLPROP requests. This
+ * is a fastpath to avoid the (slower) sequence "get properties, get value for
+ * each property".
+ */
+
+/**
  * @function dav_cms_db_first_name
  *  Read properties for a URI from the database and build an
  *  
@@ -732,7 +811,7 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 {
   pname->ns = pname->name = NULL;
 
-  /* If we don't have a hash of properties, create one
+  /* If we don't have a result set full of properties, create one
    * and fill it with the properties.
    */
   if (db->cursor == NULL)
@@ -770,7 +849,7 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 	}
       
       /* return the first property */
-      pname->ns = PQgetvalue (db->cursor, db->pos, 0);
+      pname->ns   = PQgetvalue (db->cursor, db->pos, 0);
       pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
 
       /* SIDE NOTE: is this planed at all? Different properties
@@ -807,51 +886,55 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 dav_error *
 dav_cms_db_next_name (dav_db * db, dav_prop_name * pname)
 {
-  if (db->pos == db->rows)
+    if (db->pos == db->rows)
     {
-      pname->ns = pname->name = NULL;
-      PQclear (db->cursor);
-      db->cursor = NULL, db->pos = db->rows = 0;
+        pname->ns = pname->name = NULL;
+        PQclear (db->cursor);
+        /* This indicates 'end-of-props' */
+        db->cursor = NULL, db->pos = db->rows = 0;
     }
-  else
+    else
     {
-      /*FIXME: do we need to insert namespaces or their prefix here */
-      pname->ns = PQgetvalue (db->cursor, db->pos, 0);
-      pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
-
-      db->pos++;
+        /*FIXME: do we need to insert namespaces or their prefix here */
+        pname->ns = PQgetvalue (db->cursor, db->pos, 0);
+        pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
+      
+        db->pos++;
     }
-  return NULL;
+    return NULL;
 }
 
-/* FIXME: i still don't grasp the concept of this! */
+/* FIXME: i still don't grasp the concept of this!  Update: I don't have to -
+ * this is supposed to store old property values to enable rollback. Since we
+ * use database transactions we don't need'em.
+ */
 dav_error *
 dav_cms_db_get_rollback (dav_db * db, const dav_prop_name * name,
 			 dav_deadprop_rollback ** prollback)
 {
-  return NULL;
+    return NULL;
 }
 
 dav_error *
 dav_cms_db_apply_rollback (dav_db * db, dav_deadprop_rollback * rollback)
 {
-  dav_cms_rollback(db);
-  db->DTL = OFF;
-  return NULL;
+    dav_cms_rollback(db);
+    db->DTL = OFF;
+    return NULL;
 }
 
 
 const dav_hooks_propdb dav_cms_hooks_propdb = {
-  dav_cms_db_open,
-  dav_cms_db_close,
-  dav_cms_db_define_namespaces,
-  dav_cms_db_output_value,
-  dav_cms_db_map_namespaces,
-  dav_cms_db_store,
-  dav_cms_db_remove,
-  dav_cms_db_exists,
-  dav_cms_db_first_name,
-  dav_cms_db_next_name,
-  dav_cms_db_get_rollback,
-  dav_cms_db_apply_rollback,
+    dav_cms_db_open,
+    dav_cms_db_close,
+    dav_cms_db_define_namespaces,
+    dav_cms_db_output_value,
+    dav_cms_db_map_namespaces,
+    dav_cms_db_store,
+    dav_cms_db_remove,
+    dav_cms_db_exists,
+    dav_cms_db_first_name,
+    dav_cms_db_next_name,
+    dav_cms_db_get_rollback,
+    dav_cms_db_apply_rollback,
 };
