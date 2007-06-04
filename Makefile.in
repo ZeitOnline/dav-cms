@@ -1,8 +1,9 @@
-# APXS = @apxs@
-APXS       = /usr/bin/apxs2
-APR_CONFIG = /usr/bin/apr-config
-APACHECTL  = /usr/sbin/apache2ctl
-PG_CONFIG  = /usr/bin/pg_config
+
+
+APXS       = @APXS@
+APR_CONFIG = @APRCONFIG@
+APACHECTL  = @APACHECTL@
+PG_CONFIG  = @PGCONFIG@
 
 SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c
 

@@ -1,0 +1,1 @@
+LoadModule mime_xattr_module /usr/lib/apache2/modules/mod_dav_cms.so

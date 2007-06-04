@@ -5,6 +5,7 @@
 #
 # Licence: GPL
 #
+
 AC_PREREQ(2.57) 
 AC_INIT([mod_dav_cms],[0.2], [rm (at) seid-online (dot) de])
 AC_CONFIG_SRCDIR([mod_dav_cms.c])
@@ -30,6 +31,15 @@ AC_ARG_WITH(apxs,
 
 if test "x$APXS" = "xnotfound" ; then
     AC_MSG_ERROR([*** Sorry, could not find apxs ***])
+fi
+
+AC_ARG_WITH(apr-config,
+    AS_HELP_STRING(--with-apr-config=PATH,/path/to/apr-config),
+    [ AC_PATH_PROGS(APRCONFIG, [apr-config], "notfound", "$withval:$PATH") ], 
+    [ AC_PATH_PROGS(APRCONFIG, [apr-config], "notfound", "/usr/local/apache/bin:/usr/local/bin:/usr/sbin:$PATH")])
+
+if test "x$APRCONFIG" = "xnotfound" ; then
+    AC_MSG_ERROR([*** Sorry, could not find ap-config ***])
 fi
 
 AC_ARG_WITH(apachectl,
