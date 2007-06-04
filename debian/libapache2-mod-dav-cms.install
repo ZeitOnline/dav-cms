@@ -1,2 +1,2 @@
 .libs/mod_dav_cms.so usr/lib/apache2/modules/
-debian/dav-cms.load etc/apache2/mods-available/
+debian/dav_cms.load etc/apache2/mods-available/

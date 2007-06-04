@@ -1,0 +1,6 @@
+mod-dav-cms (0.2.0) unstable; urgency=low
+
+  * Initial Debianization.
+
+ -- R. Mattes <rm@seid-online.de>  Mon,  4 Jun 2007 16:32:41 +0200
+
