@@ -1,4 +1,3 @@
-
 /**
  *
  * Filespec: $Id$
@@ -77,7 +76,7 @@ dav_cms_db_connect (dav_cms_dbh * database)
 	info = i = PQconndefaults ();
 	while (info->keyword)
 	  {
-	    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "\t'%s'\t=\t'%s'", (info->keyword), (info->val));
+	    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, " '%s' = '%s'", (info->keyword), (info->val));
 	    info++;
 	  }
 	PQconninfoFree (i);
@@ -260,7 +259,7 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
 
   /* really open database connection */
   if (dav_cms_db_connect (dbh) != CMS_OK)
-    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
 			  "Error connecting to property database");
 
 
@@ -287,7 +286,7 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
 
 #ifndef NDEBUG
   ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		"[cms]: Opening database '%s'\n", resource->uri);
+		"[cms]: Opening database '%s'", resource->uri);
 #endif
   return NULL;
 }
@@ -300,13 +299,13 @@ dav_cms_db_close (dav_db * db)
 #ifndef NDEBUG
   resource = db->resource;
   ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		"[cms]: Closing database for '%s'\n", resource->uri);
+		"[cms]: Closing database for '%s'", resource->uri);
 #endif
 
   /*FIXME: is this a good place to commit? */
   if (dav_cms_commit (db) != CMS_OK)
     /* FIXME: how to raise an error ? */
-    (void) dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+    (void) dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			  "Error commiting transaction in property database\n"
 			  "Your operation might not be stored in the backend");
   /* FIXME: Just to keep compiler happy */
@@ -356,7 +355,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   res = PQexec (db->conn, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			    "Fatal Error: datbase error during  property storage.");
     }
   ntuples = PQntuples (res);
@@ -369,7 +368,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
           apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
       prefix = dav_xmlns_add_uri (xi, namespace);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
+		    "[Adding ns '%s' as '%s']", namespace, prefix);
     }
   PQclear (res);
   return NULL;
@@ -418,7 +417,7 @@ dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
 
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			    "Fatal Error: datbase error during  property operation.");
     }
   ntuples = PQntuples (res);
@@ -432,7 +431,7 @@ dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
       prefix = dav_xmlns_add_uri (xi, namespace);
 #ifndef NDEBUG
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[Adding ns '%s' as '%s']\n", namespace, prefix);
+		    "[Adding ns '%s' as '%s']", namespace, prefix);
 #endif
     }
   PQclear (res);
@@ -454,15 +453,15 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
 
 #ifndef NDEBUG
   ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		"[CMS:DEBUG]\tLooking for `%s' : `%s'\n", name->ns,
+		"[CMS:DEBUG] Looking for `%s' : `%s'", name->ns,
 		name->name);
 #endif
 
   if (!db->conn)
     {
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "CLOSED DATABASE\n");
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-			    "[CMS:FATAL]\tTrying to access closed database.");
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "CLOSED DATABASE");
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
+			    "[CMS:FATAL] Trying to access closed database.");
     }
 
   /* FIXME: why do we have to call this ourself? */
@@ -483,7 +482,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   {
       *found = 0;
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[Passing DAV: request]\n");
+		    "[Passing DAV: request]");
       return NULL;
   }
   
@@ -519,7 +518,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   res = PQexec (db->conn, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			    "Fatal Error: datbase error during  property storage.");
     }
   ntuples = PQntuples (res);
@@ -546,7 +545,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
        *                      
        */
 
-      buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>\n",
+      buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
 			     prefix, tag,
                              value, prefix, tag);
 
@@ -608,17 +607,17 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 
   if (!dbh)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
 			    "Fatal Error: no database connection to store property.");
     }
 
   /* Storage needs expicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
-    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			  "Error entering transaction context in property database");
 
   /* convert the xml-branch value to its text representation */
-  apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, NULL, 0,
+  apr_xml_to_text (db->pool, elem, APR_XML_X2T_FULL, NULL, 0,
 		   (const char **) &value, &valsize);
   if (value)
     value[valsize] = (char) 0;
@@ -665,7 +664,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
       PQclear (res);
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			    "Fatal Error: datbase error during  property storage.");
     }
   PQclear (res);
@@ -682,7 +681,7 @@ dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
 
   /* Removal needs expicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
-    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			  "Error entering transaction context in property database");
   
   if (dbh)
@@ -776,11 +775,11 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
   res = PQexec (dbh->dbh, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 		     "Fatal Error: datbase error during  property existance check.");
     }
   exists = PQntuples (res);
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "Existance check: '%d'\n",
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "Existance check: '%d'",
 		exists);
   PQclear (res);
   return exists;
