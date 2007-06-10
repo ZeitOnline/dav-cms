@@ -64,13 +64,15 @@ dav_cms_db_connect (dav_cms_dbh * database)
       database->dbh = PQconnectdb (database->dsn);
       if (PQstatus (database->dbh) == CONNECTION_BAD)
 	{
-	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "[cms]: Database error '%s'", PQerrorMessage (database->dbh));
+	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "[cms]: Database error '%s'", 
+                        PQerrorMessage (database->dbh));
 	  PQfinish (database->dbh);
 	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
     
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "[cms]: Connected to backend with the following options:" );
+      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, 
+                    "[cms]: Connected to backend with the following options (%s):", database->dsn);
       {
 	PQconninfoOption *info, *i;
 	info = i = PQconndefaults ();
@@ -200,7 +202,7 @@ dav_cms_commit (dav_db * db)
 	  PQclear (res);
 	  return CMS_FAIL;
 	}
-      PQclear (res);
+      PQclear (res);            /* FIXME: don't we need to set PTL to OFF ??? */
       return CMS_OK;
     }
   else          /* no backend transaction open */
@@ -545,10 +547,19 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
        *                      
        */
 
-      buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
-			     prefix, tag,
-                             value, prefix, tag);
-
+      /* Honk: This is a hack we need to ensure proper namespace storage.  Iff
+       * we store a structured value /with possibly multiple namesapces) we
+       * need to store the full value tree (i.e. including the property name
+       * tag) to catch all relevant namespace declarations. Hence we can just
+       * output the stored xml.
+       */
+      if(value && value[0] == '<') {
+          buffer = apr_psprintf (db->pool, "%s", value);
+      } else {
+          buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
+                                 prefix, tag,
+                                 value, prefix, tag);
+      }
       apr_text_append (db->pool, phdr, buffer);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
 		    "[URI: '%s 'Prefix '%s'] %s", uri, prefix, buffer);
@@ -558,12 +569,33 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   return NULL;
 }
 
-/* FIXME: what's this supposed to do */
+/* 
+ * Here we get a chance too have a peek at all namespaces of an incomming
+ * WebDAV request. We might need this to create a lookup table to emmit xml:ns
+ * declarations during property serialisation.
+ */
+
 dav_error *
 dav_cms_db_map_namespaces (dav_db * db,
 			   const apr_array_header_t * namespaces,
 			   dav_namespace_map ** mapping)
 {
+  int i;
+  int *pmap;
+  const char **puri;
+  dav_namespace_map *m = apr_palloc(db->pool, sizeof(*m));
+
+  m->ns_map = pmap = apr_palloc(db->pool, namespaces->nelts * sizeof(*pmap));
+
+  for (i = 0, puri = (const char **) namespaces->elts;
+       i < namespaces->nelts; ++puri, ++i, ++pmap) {
+
+        ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                      "[Namespace %d URI: '%s']", i, *puri);
+        *pmap = i;
+  }
+  m->namespaces = namespaces;
+  *mapping = m;
   return NULL;
 }
 
@@ -572,7 +604,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 		  const apr_xml_elem * elem, dav_namespace_map * mapping)
 {
 
-  /* FIXME: the following algorythm needs to be implemented:
+  /* FIXME: the following algorithm needs to be implemented:
    * 
    * -# compare the namespace with the hash of namespaces we
    *    are interested in.
@@ -611,14 +643,30 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 			    "Fatal Error: no database connection to store property.");
     }
 
-  /* Storage needs expicit backend transactions */
+  /* Storage needs explicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
     return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
 			  "Error entering transaction context in property database");
 
-  /* convert the xml-branch value to its text representation */
-  apr_xml_to_text (db->pool, elem, APR_XML_X2T_FULL, NULL, 0,
-		   (const char **) &value, &valsize);
+  /* ... end debugging */
+
+  /* convert the xml-branch value to its text representation 
+   *
+   * Iff we have a structured value (we have at least one child) we store a
+   * serialized full tree version. We need a full tree (i.e. a tree including
+   * the property name tag) here to have an enclosing element to hold all
+   * neccessary namespace declarations. 
+   * NOTE: this implies some tragic changes to value output as well. See there.
+   */
+  if (elem->first_child) {    
+      apr_xml_to_text (db->pool, elem, APR_XML_X2T_FULL_NS_LANG, 
+                       mapping->namespaces, mapping->ns_map, (const char **) &value, &valsize);
+
+  } else {
+      apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, 
+                       NULL, 0, (const char **) &value, &valsize);
+  }
+
   if (value)
     value[valsize] = (char) 0;
 

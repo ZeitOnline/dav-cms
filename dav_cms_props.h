@@ -19,6 +19,11 @@ extern "C" {
    * mod_Dav_svn.[ch].
    */
 
+struct dav_namespace_map {
+    int                *ns_map;
+    apr_array_header_t *namespaces;
+};
+
 struct dav_db {
   const dav_resource *resource;
   apr_pool_t         *pool;
