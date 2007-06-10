@@ -558,7 +558,8 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
       } else {
           buffer = apr_psprintf (db->pool, "<%s:%s>%s</%s:%s>",
                                  prefix, tag,
-                                 value, prefix, tag);
+                                 apr_xml_quote_string (db->pool, value, 0),
+                                 prefix, tag);
       }
       apr_text_append (db->pool, phdr, buffer);
       ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
@@ -658,7 +659,9 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
    * neccessary namespace declarations. 
    * NOTE: this implies some tragic changes to value output as well. See there.
    */
+
   if (elem->first_child) {    
+      apr_xml_quote_elem(db->pool, (apr_xml_elem *) elem);
       apr_xml_to_text (db->pool, elem, APR_XML_X2T_FULL_NS_LANG, 
                        mapping->namespaces, mapping->ns_map, (const char **) &value, &valsize);
 
@@ -667,8 +670,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
                        NULL, 0, (const char **) &value, &valsize);
   }
 
-  if (value)
-    value[valsize] = (char) 0;
+  if (value) value[valsize] = (char) 0;
 
   /* From here on we collect the neccessary tokens, sql-escape them
    * and record the token length to calculate the maximum length of 
@@ -836,8 +838,8 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
 /**
  * The following two functions (dav_cmd_db_first_name and
  * dav_cms_db_next_name) are called from mod_dav during ALLPROP requests. This
- * is a fastpath to avoid the (slower) sequence "get properties, get value for
- * each property".
+ * is a fastpath to avoid the (slower) sequence "get properties, then get
+ * value for each property".
  */
 
 /**

@@ -1,3 +1,12 @@
+mod-dav-cms (0.2.1) unstable; urgency=low
+
+  * Implemented a first _possible_ solution to namespace
+    handling in strucured/mixed content properties.
+  
+  * Fixed output of string only values.
+
+ -- Ralf Mattes <rm@mh-freiburg.de>  Sun, 10 Jun 2007 16:14:33 +0200
+
 mod-dav-cms (0.2.0) unstable; urgency=low
 
   * Initial Debianization.
