@@ -48,7 +48,8 @@ struct dav_db {
 };
 
 
-extern  const dav_hooks_propdb dav_cms_hooks_propdb;
+extern const dav_hooks_propdb dav_cms_hooks_propdb;
+extern const dav_hooks_search dav_cms_hooks_search;
   
   /*
    * Prototypes for the dav_cms property database hooks 

@@ -23,6 +23,12 @@ all: $(SRC) $(HEADERS)
 install: .libs/mod_dav_cms.so
 	$(APXS) -i  -n 'mod_dav_cms' .libs/mod_dav_cms.so  
 
+clean:
+	-rm ./libs
+
+distclean: clean
+	-rm config.guess  config.log  config.status  config.sub 
+
 restart:
 	$(APACHECTL) stop
 	$(APACHECTL) start

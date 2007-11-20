@@ -489,8 +489,11 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   }
   
   ntuples = 0;
-  qlen      = 0;
+  qlen    = 0;
 
+  /** FIXME: the following code produces wrong URIs for collections 
+   * (missing  '/' at the end of the resource name). 
+   */
   tlen = strlen (db->resource->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, db->resource->uri, tlen);
@@ -677,16 +680,27 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
    * the query string.
    */
   qlen = 0;
-
-  uri  = (char *) db->resource->uri;
-  tlen = strlen (uri);
-  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
-  tlen = PQescapeString (buffer, uri, tlen);
-  turi = buffer;
-  qlen += tlen;
-
+  {   /** This is a quick hack to compensate for a bug in Apache's mod_dav:
+       *  We won't get the trailing slash for resources!
+       */
+      if ((db->resource->type == DAV_RESOURCE_TYPE_REGULAR) && (db->resource->collection == 1))
+      { 
+          uri = apr_pstrcat(db->pool, db->resource->uri, "/"); 
+      }
+      else 
+      {
+          uri  = (char *) db->resource->uri; 
+      }
+      tlen = strlen (uri);
+      buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+      tlen = PQescapeString (buffer, uri, tlen);
+      turi = buffer;
+      qlen += tlen;
+  }
+  
   tlen = strlen (name->ns);
- 
+  
+
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, name->ns, tlen);
   tns = buffer;
@@ -972,6 +986,63 @@ dav_cms_db_apply_rollback (dav_db * db, dav_deadprop_rollback * rollback)
     return NULL;
 }
 
+dav_error *
+dav_cms_copy_resource (const dav_resource *src, dav_resource *dst, 
+                       int depth, dav_response **response)
+{
+    ;
+}
+
+dav_error *
+dav_cms_move_resource (dav_resource *src, dav_resource *dst, dav_response **response)
+{
+   /*  Here the following shold happen:
+     *  - Open transaction 
+     *  - Copy properties
+     *    If this fails we can rollback the database and return an error.
+     *    If this succeeds we call the backend remove callback.
+     */
+    ;
+    /* Iff the resource operation didn't return any errors we can 
+     * commit the transaction now. Else we rollback and everything
+     * is in it's prior state.
+     */
+    ;
+}
+
+
+dav_error *
+dav_cms_remove_resource (dav_resource *resource, dav_response **response)
+{
+    /*  Here the following shold happen:
+     *  - Open transaction 
+     *  - Move properties
+     *    If this fails we can rollback the database and return an
+     *    error.
+     *    If this succeeds we call the backend remove callback.
+     */
+    ;
+    /* Iff the resource operation didn't return any errors we can 
+     * commit the transaction now. Else we rollback and everything
+     * is in it's prior state.
+     */
+}
+
+
+static dav_error *dav_cms_set_option_head(request_rec * r)
+{
+    apr_table_addn(r->headers_out, "DASL", "<http://namespaces.zeit.de/CMS/SEXY-Search>");
+    return NULL;
+}
+
+static dav_error *dav_cms_search_resource(request_rec * r, dav_response ** res)
+{
+    /** FIXME: no-opt for now! **/
+    //  *res = NULL;
+    //  return NULL;
+    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "%s request for %s", r->method, r->unparsed_uri);
+    return dav_new_error(r->pool, HTTP_BAD_REQUEST, 0, "Don't know how to handle SEARCH requests yet!");
+}
 
 const dav_hooks_propdb dav_cms_hooks_propdb = {
     dav_cms_db_open,
@@ -986,4 +1057,10 @@ const dav_hooks_propdb dav_cms_hooks_propdb = {
     dav_cms_db_next_name,
     dav_cms_db_get_rollback,
     dav_cms_db_apply_rollback,
+};
+
+const dav_hooks_search dav_cms_hooks_search = {
+    dav_cms_set_option_head,
+    dav_cms_search_resource,
+    NULL,
 };

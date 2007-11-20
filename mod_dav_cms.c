@@ -84,7 +84,7 @@ dav_cms_dbh *dbh;
       if(dav_backend_provider)
       {
       #ifndef NDEBUG
-         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[CMS]: Found backend DAV provider!\n");
+         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[CMS]: Found backend DAV provider!");
       #endif
       /* patch the provider table */
          dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
@@ -93,6 +93,7 @@ dav_cms_dbh *dbh;
          dav_cms_provider.binding = dav_backend_provider->binding;   /* ???              */
       /* insert our functionality */
          dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
+         dav_cms_provider.search  = &dav_cms_hooks_search;         
       }
    }
 
@@ -113,7 +114,7 @@ dav_cms_dbh *dbh;
    dav_cms_child_destroy(void *ctxt)
    {
 #     ifndef NDEBUG
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Cleaning up resources\n");
+      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Cleaning up resources");
 #     endif
 
       if(dbh)
@@ -123,7 +124,7 @@ dav_cms_dbh *dbh;
          dbh->dbh = NULL;
          dbh = NULL;
 #        ifndef NDEBUG
-	 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closed database connection\n");
+	 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closed database connection");
 #        endif
       }
       return APR_SUCCESS;
@@ -160,7 +161,7 @@ dav_cms_dbh *dbh;
    /* FIXME: how do i get my hands on 'conf' */
       conf = (dav_cms_server_conf *)ap_get_module_config(server->module_config, &dav_cms_module);
       if(!conf)
-	printf("No configuration data found\n");
+	printf("No configuration data found");
    
    /* Allocate our database connection struct from the child pool ... */
    
@@ -169,7 +170,7 @@ dav_cms_dbh *dbh;
    
       if(dbh)
       {
-         printf("DSN is: %s\n", conf->dsn); 
+         printf("DSN is: %s", conf->dsn); 
          dbh->dsn = apr_pstrdup(pchild, conf->dsn);
          dbh->dbh = NULL;
       } 
@@ -239,7 +240,7 @@ dav_cms_dbh *dbh;
    */
    #ifndef NDEBUG
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-         "[CMS]: Request to use '%s' as a backend DAV module.\n", arg1);
+         "[CMS]: Request to use '%s' as a backend DAV module.", arg1);
    #endif
       dav_backend_provider = NULL;
       dav_backend_provider = dav_lookup_provider(arg1);
@@ -247,7 +248,7 @@ dav_cms_dbh *dbh;
       {
       #ifndef NDEBUG
          ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-            "[CMS]: Found backend DAV provider!\n");
+            "[CMS]: Found backend DAV provider!");
       #endif
          return NULL;
          conf->backend = apr_pstrdup(cmd->pool, arg1);
@@ -261,7 +262,7 @@ dav_cms_dbh *dbh;
       else 
       {
          ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
-            "[CMS]: Couldn't get backend DAV provider\n");
+            "[CMS]: Couldn't get backend DAV provider");
          return "\tCMSbackend: no DAV provider with that name.";
       }
    }
@@ -277,7 +278,7 @@ dav_cms_dbh *dbh;
       conf->dsn = apr_pstrdup(cmd->pool, arg1);
    #ifndef NDEBUG
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
-         "[CMS]: Request to use %s as a database server\n", conf->dsn);
+         "[CMS]: Request to use %s as a database server", conf->dsn);
    #endif
       return NULL;
    }
