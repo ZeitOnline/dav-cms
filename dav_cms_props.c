@@ -273,6 +273,28 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
   db->pos = db->rows = 0;
   *pdb = db;
 
+  /* NOTE: this is a quick fix to ensure a consistent naming scheme for
+   * collection resources. For now we normalize to a version _without_
+   * a trailing slash.
+   */
+
+  if ((resource->type == DAV_RESOURCE_TYPE_REGULAR) && (resource->collection == 1))
+  {
+      char* curi = apr_pstrdup(p, resource->uri);
+      int   len  = strlen(curi);
+      if (len > 1 && curi[len - 1] == '/') {
+          curi[len - 1] = '\0';
+      }
+      db->uri = curi;
+  } 
+  else 
+  {
+      db->uri = apr_pstrdup(p, resource->uri); 
+  } 
+
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                "[URI in fcall to '%s' is '%s']", __FUNCTION__, db->uri);
+
   /* NOTE: here we only indicate that we should be in a transaction.
    * The actual transaction is only started the first time we access the
    * database (either for read/write/delete).
@@ -342,10 +364,12 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   ntuples = 0;
   qlen    = 0;
 
-  tlen = strlen (db->resource->uri);
+  tlen = strlen (db->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
-  tlen = PQescapeString (buffer, db->resource->uri, tlen);
+  tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
   qlen += tlen;
   
   qtempl = "SELECT DISTINCT namespace FROM facts WHERE uri = '%s'";
@@ -410,7 +434,7 @@ dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
    * prefixes.
    */
   ntuples   = 0;
-  params[0] = db->resource->uri;
+  params[0] = db->uri;
   
   /* execute the database query and check return value */
 
@@ -494,10 +518,12 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   /** FIXME: the following code produces wrong URIs for collections 
    * (missing  '/' at the end of the resource name). 
    */
-  tlen = strlen (db->resource->uri);
+  tlen = strlen (db->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
-  tlen = PQescapeString (buffer, db->resource->uri, tlen);
+  tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
+  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
   qlen += tlen;
 
   tlen = strlen (name->ns);
@@ -680,27 +706,15 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
    * the query string.
    */
   qlen = 0;
-  {   /** This is a quick hack to compensate for a bug in Apache's mod_dav:
-       *  We won't get the trailing slash for resources!
-       */
-      if ((db->resource->type == DAV_RESOURCE_TYPE_REGULAR) && (db->resource->collection == 1))
-      { 
-          uri = apr_pstrcat(db->pool, db->resource->uri, "/"); 
-      }
-      else 
-      {
-          uri  = (char *) db->resource->uri; 
-      }
-      tlen = strlen (uri);
-      buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
-      tlen = PQescapeString (buffer, uri, tlen);
-      turi = buffer;
-      qlen += tlen;
-  }
+  
+  uri  = (char *) db->uri; 
+  tlen = strlen (uri);
+  buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
+  tlen = PQescapeString (buffer, uri, tlen);
+  turi = buffer;
+  qlen += tlen;
   
   tlen = strlen (name->ns);
-  
-
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, name->ns, tlen);
   tns = buffer;
@@ -761,11 +775,13 @@ dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
 
       qlen = 0;
 
-      uri = (char *) db->resource->uri;
+      uri = (char *) db->uri;
       tlen = strlen (uri);
       buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
       tlen = PQescapeString (buffer, uri, tlen);
       turi = buffer;
+        ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
       qlen += tlen;
 
       tlen = strlen (name->ns);
@@ -810,10 +826,12 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
 
   qlen = 0;
 
-  tlen = strlen (db->resource->uri);
+  tlen = strlen (db->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
-  tlen = PQescapeString (buffer, db->resource->uri, tlen);
+  tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
+    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
   qlen += tlen;
 
   tlen = strlen (name->ns);
@@ -891,10 +909,12 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 
       qlen = 0;
 
-      tlen = strlen (db->resource->uri);
+      tlen = strlen (db->uri);
       buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
-      tlen = PQescapeString (buffer, db->resource->uri, tlen);
+      tlen = PQescapeString (buffer, db->uri, tlen);
       turi = buffer;
+        ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
       qlen += tlen;
 
       qtempl = "SELECT namespace, name, value FROM facts " "WHERE uri = '%s'";
