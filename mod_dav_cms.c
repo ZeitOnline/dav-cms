@@ -95,6 +95,11 @@ dav_cms_dbh *dbh;
          dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
          dav_cms_provider.search  = &dav_cms_hooks_search;         
       }
+      else 
+      {
+      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", DAV_DEFAULT_BACKEND);
+      exit (0);
+      }
    }
 
 
