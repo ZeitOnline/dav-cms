@@ -1,3 +1,9 @@
+mod-dav-cms (0.2.1zeit2) unstable; urgency=low
+
+  * Removed spurious debugging messages.
+
+ -- Ralf Mattes <rm@mh-freiburg.de>  Sat,  1 Dec 2007 21:28:55 +0100
+
 mod-dav-cms (0.2.1zeit1) gutsy; urgency=low
 
   * Fixes collection resource URI bug.

@@ -292,9 +292,6 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
       db->uri = apr_pstrdup(p, resource->uri); 
   } 
 
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                "[URI in fcall to '%s' is '%s']", __FUNCTION__, db->uri);
-
   /* NOTE: here we only indicate that we should be in a transaction.
    * The actual transaction is only started the first time we access the
    * database (either for read/write/delete).
@@ -368,8 +365,6 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
   qlen += tlen;
   
   qtempl = "SELECT DISTINCT namespace FROM facts WHERE uri = '%s'";
@@ -522,8 +517,6 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
   qlen += tlen;
 
   tlen = strlen (name->ns);
@@ -591,8 +584,6 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
                                  prefix, tag);
       }
       apr_text_append (db->pool, phdr, buffer);
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		    "[URI: '%s 'Prefix '%s'] %s", uri, prefix, buffer);
     }
   PQclear (res);
   *found = ntuples;
@@ -619,9 +610,6 @@ dav_cms_db_map_namespaces (dav_db * db,
 
   for (i = 0, puri = (const char **) namespaces->elts;
        i < namespaces->nelts; ++puri, ++i, ++pmap) {
-
-        ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                      "[Namespace %d URI: '%s']", i, *puri);
         *pmap = i;
   }
   m->namespaces = namespaces;
@@ -780,8 +768,6 @@ dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
       buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
       tlen = PQescapeString (buffer, uri, tlen);
       turi = buffer;
-        ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
       qlen += tlen;
 
       tlen = strlen (name->ns);
@@ -830,8 +816,6 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
-    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
   qlen += tlen;
 
   tlen = strlen (name->ns);
@@ -913,8 +897,6 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
       buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
       tlen = PQescapeString (buffer, db->uri, tlen);
       turi = buffer;
-        ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-                "[URI in fcall to '%s' is '%s']", __FUNCTION__, turi);
       qlen += tlen;
 
       qtempl = "SELECT namespace, name, value FROM facts " "WHERE uri = '%s'";
