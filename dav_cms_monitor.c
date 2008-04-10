@@ -22,7 +22,15 @@ static char trigger1_sql[] =
 static char trigger2_sql[] =
 "INSERT INTO triggers VALUES ('%s', '%s')";
 
+static char move_collection_sql[] =
+    "UPDATE facts ... WHERE uri like $1";
 
+static char copy_collection_sql[] =
+    "";
+
+static char delete_collection_sql[] =
+    "";
+ 
 static char *
 dav_cms_lookup_destination(request_rec *r)
 {
@@ -43,12 +51,11 @@ dav_cms_lookup_destination(request_rec *r)
   return uri;
 }
 
-static int dav_cms_log(request_rec *r, const char *method, const char *src, const char *dest)
+/* FIXME: this is only partially refactored code - we want th migrate
+ * to the ap_dbd model of database connections*/
+
+static inline ensure_database ()
 {
-  PGresult   *res;
-  char       *query;
-  size_t      src_len, dest_len, query_len;
-   
   if(!dbh)
     {
       ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Fatal error: no database");
@@ -68,7 +75,15 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
 	  return OK;
 	}
     }
+  return -1;
+}
 
+static int dav_cms_log(request_rec *r, const char *method, const char *src, const char *dest)
+{
+  PGresult   *res;
+  char       *query;
+  size_t      src_len, dest_len, query_len;
+  
   query_len = src_len = dest_len = 0;
   src_len   = strlen(src);
  
@@ -104,31 +119,95 @@ static int
 dav_cms_move_props(request_rec *r, const char *src, const char *dest)
 {
 
-  /* update all uri's in the facts database
-   *
-   *- BEGIN WORK;
-   *- UPDATE facts SET uri = subst(uri , 'src', 'dest') WHERE URI LIKE 'src%';
-   *- COMMIT WORK;
-   * WRONG: we can't subst blindly, otherwise /foo/blub will match /foo/bluber
-   * as well, which is wrong!
-   * FIXME: what about the canonical name of collection destinations?
-   */
-  return dav_cms_log(r, r->method, src, dest);
+    PGresult *res;
+    char * params[2];
+    int ntuples = 0;
+    
+    params[0] = src;
+    params[1] = dest;
+    
+    //- BEGIN WORK; 
+   
+    res = PQexecParams(dbh->dbh, "UPDATE facts SET uri = $2 WHERE uri = $1",
+                       2, NULL, params, NULL, NULL, 0); 
+    //- COMMIT WORK;
+    if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+        {
+            return dav_new_error (dbh->dbh, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+                                  "Fatal Error: datbase error during  resource MOVE.");
+        }
+    ntuples = PQntuples (res);
+
+    /* WRONG: we can't subst blindly, otherwise /foo/blub will match /foo/bluber
+     * as well, which is wrong!
+     * FIXME: what about the canonical name of collection destinations?
+     */
+    return dav_cms_log(r, r->method, src, dest);
 }
 
 static int
 dav_cms_copy_props(request_rec *r, const char *src, const char *dest)
 {
   /* copy all the facts in the facts database ... */
-  return  dav_cms_log(r, r->method, src, dest);
+
+    PGresult *res;
+    char * params[2];
+    int ntuples = 0;
+        
+    params[0] = src;
+    params[1] = dest;
+    
+    //- BEGIN WORK; 
+    res = PQexecParams(dbh->dbh, 
+                       "INSERT  INTO facts (uri, namespace, name, value) "  
+                       "(select $2 as uri, namespace, name, value "
+                       "FROM facts WHERE uri = $1)",
+                       2, NULL, params, NULL, NULL, 0); 
+    //- COMMIT WORK;
+    if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+        {
+            return dav_new_error (dbh->dbh, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+                                  "Fatal Error: datbase error during  resource MOVE.");
+        }
+    ntuples = PQntuples (res);
+
+     /* FIXME: what about the canonical name of collection destinations?
+     */
+    
+    return  dav_cms_log(r, r->method, src, dest);
 }
+
 
 /* FIXME: do we need this here ? */
 static int
 dav_cms_delete_props(request_rec *r, const char *uri)
 {
-  
-  return OK;
+
+    PGresult *res;
+    char * params[1];
+    int ntuples = 0;
+    
+    params[0] = uri;
+    
+    //- BEGIN WORK; 
+    res = PQexecParams(dbh->dbh, 
+                       "DELETE FROM facts "  
+                       "WHERE uri = $1)",
+                       1, NULL, params, NULL, NULL, 0); 
+    dav_cms_log(r, r->method, uri, "");
+    //- COMMIT WORK;
+    if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+        {
+            return dav_new_error (dbh->dbh, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+                                  "Fatal Error: datbase error during  resource MOVE.");
+        }
+    ntuples = PQntuples (res);
+
+    /* FIXME: what about the canonical name of collection destinations?
+     */
+    
+    return  dav_cms_log(r, r->method, uri, "");  
+
 }
 
 /* Dummy implemetation for now */
@@ -137,7 +216,8 @@ int dav_cms_monitor(request_rec *r)
 {
   const char  *src;     // source URI of a copy/move request
   const char  *dest;    // destination URL (avec netloc) of a copy/move
-
+  
+  ensure_database ();
 
   src  = r->uri;
   dest = "";
@@ -149,28 +229,34 @@ int dav_cms_monitor(request_rec *r)
    * caused by some errors).
    */
   if ((r->status < 200) || (r->status >= 300))
-    return OK;
+      return OK;
   
   switch(r->method_number)
     {
-      /* Ignorable */
+      /* Ignorable at this point */
     case M_GET:
     case M_OPTIONS:
     case M_PROPFIND:
       break;
     case M_COPY:
-      dest = dav_cms_lookup_destination(r);
-      dav_cms_copy_props(r, src, dest);
+        dest = dav_cms_lookup_destination(r);
+        if (dest) {
+            dav_cms_copy_props(r, src, dest);
+        }
     case M_MOVE:
-      dest = dav_cms_lookup_destination(r);
-      dav_cms_move_props(r, src, dest);
+        dest = dav_cms_lookup_destination(r);
+        if (dest) {
+            dav_cms_move_props(r, src, dest);
+      }
       break;
     case M_PUT:
     case M_PROPPATCH:
     case M_DELETE:
-      dav_cms_delete_props(r, src);
+        dav_cms_delete_props(r, src);
     default:
-      /* what would that be ? */
+      /* what would that be ? 
+       * Ok - nosw i know. LOCK, MKCOL, UNLOCK ...
+       */
        dav_cms_log(r, r->method, src, NULL);
       break;
     }

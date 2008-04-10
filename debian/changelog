@@ -1,3 +1,10 @@
+mod-dav-cms (0.2.2zeit1) feisty; urgency=low
+
+  * Fixed COPY/MOVE/DELETE on resources (will _not_ complain
+    on collections but just not work).
+
+ -- Ralf Mattes <ralf@tuxteam.zeit.de>  Thu, 10 Apr 2008 12:15:33 +0200
+
 mod-dav-cms (0.2.1zeit2) unstable; urgency=low
 
   * Removed spurious debugging messages.

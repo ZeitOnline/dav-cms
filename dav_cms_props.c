@@ -1039,11 +1039,21 @@ static dav_error *dav_cms_set_option_head(request_rec * r)
 
 static dav_error *dav_cms_search_resource(request_rec * r, dav_response ** res)
 {
-    /** FIXME: no-opt for now! **/
-    //  *res = NULL;
-    //  return NULL;
+    /*
+     *  req.proxyreq = apache.PROXYREQ_REVERSE
+     *  req.uri = 'http://www.dscpl.com.au' + path
+     *  req.filename = 'proxy:%s' % req.uri
+     *  req.handler = 'proxy-server'
+     */
+    
+    r->proxyreq = PROXYREQ_REVERSE;
+    r->uri      = "http://localhost:9999/";
+    r->filename = "proxy:http://localhost:9999/";
+    r->handler  = "proxy-server";
     ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "%s request for %s", r->method, r->unparsed_uri);
     return dav_new_error(r->pool, HTTP_BAD_REQUEST, 0, "Don't know how to handle SEARCH requests yet!");
+    // * FIXME: won't work since we can't proxy at such a late time in the request handling */
+    return DECLINED;
 }
 
 const dav_hooks_propdb dav_cms_hooks_propdb = {

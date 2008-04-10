@@ -38,6 +38,10 @@
     global data structure. This is not thread save and will
     certainly fail for MPR models other than the (default) prefork
     model.
+
+    Once we move database connection/pooling to ap_dbd we don't need to
+    care about this issue any more.
+
 *** Error Handling
 *** Versioning
     - The current database schema has no means to store versioning
@@ -47,3 +51,12 @@
       information into the URI domain (which we can handle), hence no
       further actions are needed.
 
+
+----
+# Proxying to the query server
+# THIS IS THE IMPORTANT BIT WHICH SETS UP PROXY.
+
+  req.proxyreq = apache.PROXYREQ_REVERSE
+  req.uri = 'http://www.dscpl.com.au' + path
+  req.filename = 'proxy:%s' % req.uri
+  req.handler = 'proxy-server'
