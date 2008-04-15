@@ -118,9 +118,9 @@ dav_cms_dbh *dbh;
    static apr_status_t
    dav_cms_child_destroy(void *ctxt)
    {
-#     ifndef NDEBUG
+//#     ifndef NDEBUG
       ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Cleaning up resources");
-#     endif
+//#     endif
 
       if(dbh)
       {
