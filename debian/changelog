@@ -1,3 +1,9 @@
+mod-dav-cms (0.2.3zeit3) feisty; urgency=low
+
+  * Fixed property nullisation on PUT/PROPPATCH
+
+ -- R. Mattes <rm@tuxteam.zeit.de>  Fri, 18 Apr 2008 13:03:06 +0200
+
 mod-dav-cms (0.2.3zeit2) feisty; urgency=low
 
   * Fixed missing 'break' in HTTP-Method dispatching case 

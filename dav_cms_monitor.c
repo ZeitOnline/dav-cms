@@ -280,10 +280,11 @@ int dav_cms_monitor(request_rec *r)
             dav_cms_move_props(r, src, dest);
         }
         break;
-    case M_PUT:
-    case M_PROPPATCH:
     case M_DELETE:
         dav_cms_delete_props(r, src);
+        break;
+    case M_PUT:
+    case M_PROPPATCH:
         break;
     default:
       /* what would that be ? 
