@@ -273,16 +273,18 @@ int dav_cms_monitor(request_rec *r)
         if (dest) {
             dav_cms_copy_props(r, src, dest);
         }
+        break;
     case M_MOVE:
         dest = dav_cms_lookup_destination(r);
         if (dest) {
             dav_cms_move_props(r, src, dest);
-      }
-      break;
+        }
+        break;
     case M_PUT:
     case M_PROPPATCH:
     case M_DELETE:
         dav_cms_delete_props(r, src);
+        break;
     default:
       /* what would that be ? 
        * Ok - nosw i know. LOCK, MKCOL, UNLOCK ...

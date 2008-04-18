@@ -1,3 +1,10 @@
+mod-dav-cms (0.2.3zeit2) feisty; urgency=low
+
+  * Fixed missing 'break' in HTTP-Method dispatching case 
+    statement that resulted in MOVEs where COPY was intended.
+
+ -- R. Mattes <rm@tuxteam.zeit.de>  Fri, 18 Apr 2008 12:51:49 +0200
+
 mod-dav-cms (0.2.3zeit1) feisty; urgency=low
 
   * Fixed wrong return values from MOVE/COPY/DELETE
