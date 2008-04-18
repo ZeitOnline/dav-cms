@@ -21,15 +21,6 @@ static char trigger1_sql[] =
 
 static char trigger2_sql[] =
 "INSERT INTO triggers VALUES ('%s', '%s')";
-
-static char move_collection_sql[] =
-    "UPDATE facts ... WHERE uri like $1";
-
-static char copy_collection_sql[] =
-    "";
-
-static char delete_collection_sql[] =
-    "";
  
 static char *
 dav_cms_lookup_destination(request_rec *r)
@@ -104,9 +95,48 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
       query = (char *) apr_palloc(r->pool, 2 * query_len);
       snprintf(query, query_len, trigger2_sql, r->method, src);
     }
-  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "\tSQL '%s'\n", query);
-  res   = PQexec(dbh->dbh, query);
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "-> SQL '%s'", query);
+  res = PQexec(dbh->dbh, query);
+  /* NOTE: it would be nice to be able to report back errors during
+   * query execution, but, alas, where too late here, the response is
+   * already out!
+   */
   return OK;
+}
+
+static int dav_cms_log_error(request_rec *r, const char *method, const char *src, const char *dest)
+{
+  PGresult   *res;
+  char       *query;
+  size_t      src_len, dest_len, query_len;
+  
+  query_len = src_len = dest_len = 0;
+  src_len   = strlen(src);
+ 
+  if(dest)
+    {
+      query_len  += strlen(method);
+      query_len  += strlen(src);
+      query_len  += strlen(dest);
+      query_len  += strlen(trigger1_sql);
+      query = (char *) apr_palloc(r->pool, 2 * query_len);
+      snprintf(query, query_len, trigger1_sql, r->method, src, dest);
+    }
+  else 
+    {
+      query_len  += strlen(method);
+      query_len  += strlen(src);
+      query_len  += strlen(trigger2_sql);
+      query = (char *) apr_palloc(r->pool, 2 * query_len);
+      snprintf(query, query_len, trigger2_sql, r->method, src);
+    }
+  ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "ERROR: -> SQL '%s'", query);
+  res = PQexec(dbh->dbh, query);
+  /* NOTE: it would be nice to be able to report back errors during
+   * query execution, but, alas, where too late here, the response is
+   * already out!
+   */
+  return -1;
 }
 
 
@@ -133,8 +163,9 @@ dav_cms_move_props(request_rec *r, const char *src, const char *dest)
     //- COMMIT WORK;
     if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
         {
-            return dav_new_error (dbh->dbh, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
-                                  "Fatal Error: datbase error during  resource MOVE.");
+            /* FIXME: more verbose error messages here */
+            return dav_cms_log_error(r, r->method, src, dest);
+           
         }
     ntuples = PQntuples (res);
 
@@ -166,8 +197,7 @@ dav_cms_copy_props(request_rec *r, const char *src, const char *dest)
     //- COMMIT WORK;
     if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
         {
-            return dav_new_error (dbh->dbh, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
-                                  "Fatal Error: datbase error during  resource MOVE.");
+            return dav_cms_log_error(r, r->method, src, dest);
         }
     ntuples = PQntuples (res);
 
@@ -196,10 +226,9 @@ dav_cms_delete_props(request_rec *r, const char *uri)
                        1, NULL, params, NULL, NULL, 0); 
     dav_cms_log(r, r->method, uri, "");
     //- COMMIT WORK;
-    if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+    if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
         {
-            return dav_new_error (dbh->dbh, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
-                                  "Fatal Error: datbase error during  resource MOVE.");
+            return dav_cms_log_error(r, r->method, uri, "");
         }
     ntuples = PQntuples (res);
 
@@ -214,10 +243,11 @@ dav_cms_delete_props(request_rec *r, const char *uri)
 
 int dav_cms_monitor(request_rec *r)
 {
-  const char  *src;     // source URI of a copy/move request
-  const char  *dest;    // destination URL (avec netloc) of a copy/move
+    int   status;
+    const char  *src;     // source URI of a copy/move request
+    const char  *dest;    // destination URL (avec netloc) of a copy/move
   
-  ensure_database ();
+  status = ensure_database ();
 
   src  = r->uri;
   dest = "";

@@ -1,3 +1,10 @@
+mod-dav-cms (0.2.3zeit1) feisty; urgency=low
+
+  * Fixed wrong return values from MOVE/COPY/DELETE
+    operations.
+
+ -- R. Mattes <rm@tuxtea.zeit.de>  Fri, 18 Apr 2008 12:06:39 +0200
+
 mod-dav-cms (0.2.2zeit1) feisty; urgency=low
 
   * Fixed COPY/MOVE/DELETE on resources (will _not_ complain
