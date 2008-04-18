@@ -1,3 +1,9 @@
+mod-dav-cms (0.2.3zeit4) feisty; urgency=low
+
+  * Minor (cosmetic) fix: PG_COMMAND_OK instead of TUPLES_OK-
+
+ -- Ralf Mattes <rm@tuxteam.zeit.de>  Fri, 18 Apr 2008 13:27:44 +0200
+
 mod-dav-cms (0.2.3zeit3) feisty; urgency=low
 
   * Fixed property nullisation on PUT/PROPPATCH

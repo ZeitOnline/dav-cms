@@ -161,7 +161,7 @@ dav_cms_move_props(request_rec *r, const char *src, const char *dest)
     res = PQexecParams(dbh->dbh, "UPDATE facts SET uri = $2 WHERE uri = $1",
                        2, NULL, params, NULL, NULL, 0); 
     //- COMMIT WORK;
-    if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+    if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
         {
             /* FIXME: more verbose error messages here */
             return dav_cms_log_error(r, r->method, src, dest);
@@ -195,7 +195,7 @@ dav_cms_copy_props(request_rec *r, const char *src, const char *dest)
                        "FROM facts WHERE uri = $1)",
                        2, NULL, params, NULL, NULL, 0); 
     //- COMMIT WORK;
-    if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
+    if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
         {
             return dav_cms_log_error(r, r->method, src, dest);
         }
