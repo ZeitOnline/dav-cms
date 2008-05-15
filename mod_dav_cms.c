@@ -81,24 +81,25 @@ dav_cms_dbh *dbh;
    
       dav_backend_provider = NULL;
       dav_backend_provider = dav_lookup_provider(prov);
-      if(dav_backend_provider)
-      {
-      #ifndef NDEBUG
-         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[CMS]: Found backend DAV provider!");
-      #endif
+      if(!dav_backend_provider)
+          {
+              ap_log_error(APLOG_MARK, APLOG_ERROR, 0, NULL, 
+                           "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", DAV_DEFAULT_BACKEND);
+              exit (0);
+          }
+      else
+          {
+#ifndef NDEBUG
+              ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "[CMS]: Found backend DAV provider!");
+#endif
       /* patch the provider table */
          dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
          dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
          dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
-         dav_cms_provider.binding = dav_backend_provider->binding;   /* ???              */
+         dav_cms_provider.binding = dav_backend_provider->binding;   /* alias/link       */
       /* insert our functionality */
          dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
          dav_cms_provider.search  = &dav_cms_hooks_search;         
-      }
-      else 
-      {
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", DAV_DEFAULT_BACKEND);
-      exit (0);
       }
    }
 
