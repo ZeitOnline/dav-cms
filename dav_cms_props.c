@@ -189,7 +189,7 @@ dav_cms_commit (dav_db * db)
     {
     /* We are in a weired state  */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_start_transaction in weired transaction state");
+		    "[cms]: dav_cms_commit in weired transaction state");
       return CMS_FAIL;
     }
 
@@ -203,6 +203,7 @@ dav_cms_commit (dav_db * db)
 	  return CMS_FAIL;
 	}
       PQclear (res);            /* FIXME: don't we need to set PTL to OFF ??? */
+      db->PTL = OFF;
       return CMS_OK;
     }
   else          /* no backend transaction open */
@@ -241,6 +242,7 @@ dav_cms_rollback (dav_db * db)
 	  return CMS_FAIL;
 	}
       PQclear (res);
+      db->DTL = OFF;
       return CMS_OK;
     }
   else

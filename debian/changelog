@@ -1,3 +1,9 @@
+mod-dav-cms (0.2.3zeit5ubuntu1) gutsy; urgency=low
+
+  * Fix of transaction level bug.
+
+ -- R. Mattes <rmattes@zappa.zeit.de>  Wed, 14 May 2008 15:02:26 +0200
+
 mod-dav-cms (0.2.3zeit4) feisty; urgency=low
 
   * Minor (cosmetic) fix: PG_COMMAND_OK instead of TUPLES_OK-
