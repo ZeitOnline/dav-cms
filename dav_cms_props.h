@@ -39,10 +39,12 @@ struct dav_db {
   
   int                 rows;
   int                 pos;
-  /* Support for lazy transaction handling
-   * should_transact is set whenever mod_dav thinks
-   * a transaction needs to be started. The in_transact
-   * is set whenever mod_dav_cms actually opens a transaction.
+  /* Support for lazy transaction handling Dav Transaction Level (DTL)
+   * is set whenever mod_dav thinks a transaction needs to be
+   * started. The Postgres Transaction Level (PTL) is set whenever
+   * mod_dav_cms actually opens a postgres transaction.
+   * So, valid states are: 00, 10, 11.
+   * Valid transfers are:  00 -> 10, 10 -> 11, 10 -> 00 and 11 -> 00;
    */
   int                 DTL : 1;
   int                 PTL : 1;
@@ -52,9 +54,9 @@ struct dav_db {
 extern const dav_hooks_propdb dav_cms_hooks_propdb;
 extern const dav_hooks_search dav_cms_hooks_search;
   
-  /*
-   * Prototypes for the dav_cms property database hooks 
-   */
+/*
+ * Prototypes for the dav_cms property database hooks 
+ */
 
 dav_error *
 dav_cms_db_open(apr_pool_t *p, const dav_resource *resource, int ro, dav_db **pdb);

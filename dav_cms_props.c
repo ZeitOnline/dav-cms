@@ -102,7 +102,7 @@ dav_cms_db_disconnect (dav_cms_dbh * db)
   database = dbh;
 
   if (!database)
-    return CMS_FAIL;
+      return CMS_FAIL;
 
   if (database->dbh)
     {
@@ -134,14 +134,16 @@ dav_cms_ensure_transaction (dav_db * db)
   if (!db->DTL)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_ensure_transaction outside of DAV transaction.");
+		    "[cms]: dav_cms_ensure_transaction for '%s' outside of DAV transaction.",
+                    db->uri);
       return CMS_FAIL;
     }
 
   if (!db->conn)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_ensure_transaction without postgresql connection.");
+		    "[cms]: dav_cms_ensure_transaction for '%s' without postgresql connection.",
+                    db->uri);
     return CMS_FAIL;
     }
 
@@ -174,14 +176,16 @@ dav_cms_commit (dav_db * db)
   if (!db)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_ensure_transacteion in weired context (NULL db).");
+		    "[cms]: dav_cms_ensure_transaction for '%s' in weired context (NULL db)." , 
+                    db->uri);
       return CMS_FAIL;
     }
 
   if (!db->conn)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_ensure_transaction without postgresql connection.");
+		    "[cms]: dav_cms_ensure_transaction for '%s' without postgresql connection.",
+                    db->uri);
       return CMS_FAIL;   
     }
 
@@ -189,7 +193,8 @@ dav_cms_commit (dav_db * db)
     {
     /* We are in a weired state  */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_commit in weired transaction state");
+		    "[cms]: dav_cms_commit for '%s' in weired transaction state (%d%d)", 
+                    db->uri, db->DTL, db->PTL);
       return CMS_FAIL;
     }
 
@@ -198,16 +203,19 @@ dav_cms_commit (dav_db * db)
       res = PQexec (db->conn, "COMMIT -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
 	{
-	  db->PTL = OFF;
+	  db->PTL = db->DTL = OFF;
 	  PQclear (res);
 	  return CMS_FAIL;
 	}
-      PQclear (res);            /* FIXME: don't we need to set PTL to OFF ??? */
-      db->PTL = OFF;
+      PQclear (res);
+      db->PTL = db->DTL = OFF;
       return CMS_OK;
     }
-  else          /* no backend transaction open */
-    return CMS_OK;
+  else    /* no backend transaction open */
+      {
+          db->DTL = OFF;
+          return CMS_OK;
+      }
 }
 
 /**
@@ -215,38 +223,48 @@ dav_cms_commit (dav_db * db)
  * @returns 0 on success or the appropriate error code.
  */
 
-__inline__ static dav_cms_status_t
+__inline__ static dav_error *
 dav_cms_rollback (dav_db * db)
 {
   PGresult *res;
 
   if ((!db) || (!db->conn))
-    {
-      return CMS_FAIL;
-    }
+      {
+        db->DTL = db->PTL = OFF;
+        return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+                              "Fatal Error: no database connection set up!.");
+      }
 
   if (!db->DTL)
     {
-    /* We are in a weired state  */
+    /* We are in a weired state: what can we do. We might have an open
+     * backend transaction lingering  ... */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_rollback in weired transaction state");
-      return CMS_FAIL;
+		    "[cms]: dav_cms_rollback for '%s' in weired transaction state",
+                    db->uri);
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+                            "Fatal Error: weired transaction state during rollback!");;
     }
 
   if ((db->DTL) && (!db->PTL))
     {
       res = PQexec (dbh->dbh, "ROLLBACK -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
-	{
-	  PQclear (res);
-	  return CMS_FAIL;
-	}
+          {
+              db->PTL = db->DTL = OFF;
+              PQclear (res);
+              return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+                                    "Fatal Error: Could not execute backend rollback");;
+          }
       PQclear (res);
-      db->DTL = OFF;
-      return CMS_OK;
+      db->DTL = db->DTL = OFF;
+      return NULL;
     }
   else
-    return CMS_OK;
+      {
+          db->DTL = OFF;
+          return NULL;
+      }
 }
 
 /*=========================================================[ DAV PROPS CALLBACKS ]==*/
@@ -296,11 +314,11 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
 
   /* NOTE: here we only indicate that we should be in a transaction.
    * The actual transaction is only started the first time we access the
-   * database (either for read/write/delete).
+   * database (for both read and delete).
    */
   db->DTL = ON;
  
-  /* FIXME: we only need to enshure transactions for modifying access to props
+  /* FIXME: we only need to ensure transactions for modifying access to props
    * TEST: removed
    if (dav_cms_ensure_transaction (db) != CMS_OK)
    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
@@ -985,9 +1003,9 @@ dav_cms_db_get_rollback (dav_db * db, const dav_prop_name * name,
 dav_error *
 dav_cms_db_apply_rollback (dav_db * db, dav_deadprop_rollback * rollback)
 {
-    dav_cms_rollback(db);
-    db->DTL = OFF;
-    return NULL;
+    return dav_cms_rollback(db);
+    /* FIXME: we might want to return the dav_error here ... */
+    /* ... and we might as well just copy-n-paste dav_cms_rollback here! */
 }
 
 dav_error *

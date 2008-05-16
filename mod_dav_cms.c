@@ -83,7 +83,7 @@ dav_cms_dbh *dbh;
       dav_backend_provider = dav_lookup_provider(prov);
       if(!dav_backend_provider)
           {
-              ap_log_error(APLOG_MARK, APLOG_ERROR, 0, NULL, 
+              ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
                            "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", DAV_DEFAULT_BACKEND);
               exit (0);
           }
