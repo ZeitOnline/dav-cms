@@ -70,15 +70,15 @@ dav_cms_db_connect (dav_cms_dbh * database)
 	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
-    
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, 
+      ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL, 
                     "[cms]: Connected to backend with the following options (%s):", database->dsn);
+      
       {
 	PQconninfoOption *info, *i;
 	info = i = PQconndefaults ();
 	while (info->keyword)
 	  {
-	    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, " '%s' = '%s'", (info->keyword), (info->val));
+	    ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL, " '%s' = '%s'", (info->keyword), (info->val));
 	    info++;
 	  }
 	PQconninfoFree (i);
@@ -220,7 +220,7 @@ dav_cms_commit (dav_db * db)
 
 /**
  * Rollback a transaction in the backend database process.
- * @returns 0 on success or the appropriate error code.
+ * @returns NULL on success or an instance of the appropriate dav error.
  */
 
 __inline__ static dav_error *
@@ -234,8 +234,11 @@ dav_cms_rollback (dav_db * db)
         return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
                               "Fatal Error: no database connection set up!.");
       }
+  
+  if ((db->DTL == OFF) && (db->PTL == OFF))
+      {return NULL;}
 
-  if (!db->DTL)
+  if ((db->DTL == OFF) && (db->PTL == ON))
     {
     /* We are in a weired state: what can we do. We might have an open
      * backend transaction lingering  ... */
@@ -246,7 +249,7 @@ dav_cms_rollback (dav_db * db)
                             "Fatal Error: weired transaction state during rollback!");;
     }
 
-  if ((db->DTL) && (!db->PTL))
+  if (db->PTL == ON)
     {
       res = PQexec (dbh->dbh, "ROLLBACK -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
@@ -254,7 +257,9 @@ dav_cms_rollback (dav_db * db)
               db->PTL = db->DTL = OFF;
               PQclear (res);
               return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-                                    "Fatal Error: Could not execute backend rollback");;
+                                    "Fatal Error: Could not execute backend rollback:"); 
+                                    /* " Database rollback result is %d\n"  */
+                                    /* "Error Message '%s'", Pqresultstatus(res) , PQresultErrorMessage(res)); */
           }
       PQclear (res);
       db->DTL = db->DTL = OFF;
@@ -317,16 +322,10 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
    * database (for both read and delete).
    */
   db->DTL = ON;
- 
-  /* FIXME: we only need to ensure transactions for modifying access to props
-   * TEST: removed
-   if (dav_cms_ensure_transaction (db) != CMS_OK)
-   return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
-   "Error entering transaction context in property database");
-  ****/
-
+  db->PTL = OFF;
+  
 #ifndef NDEBUG
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+  ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL,
 		"[cms]: Opening database '%s'", resource->uri);
 #endif
   return NULL;
@@ -335,12 +334,9 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
 void
 dav_cms_db_close (dav_db * db)
 {
-  const dav_resource *resource = NULL;
-
 #ifndef NDEBUG
-  resource = db->resource;
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
-		"[cms]: Closing database for '%s'", resource->uri);
+    ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL,
+                  "[cms]: Trying to close database for '%s'", db->resource->uri);
 #endif
 
   /*FIXME: is this a good place to commit? */
@@ -408,7 +404,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
       namespace =
           apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
       prefix = dav_xmlns_add_uri (xi, namespace);
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+      ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL,
 		    "[Adding ns '%s' as '%s']", namespace, prefix);
     }
   PQclear (res);
@@ -433,7 +429,7 @@ dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
 {
 
   PGresult *res;
-  char * params[1];
+  const char * params[1];
   int ntuples, i;
 
   /* FIXME: to my understanding, we are asked to insert our namespaces
@@ -471,7 +467,7 @@ dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
           apr_pstrdup (xi->pool, (const char *) PQgetvalue (res, i, 0));
       prefix = dav_xmlns_add_uri (xi, namespace);
 #ifndef NDEBUG
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+      ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL,
 		    "[Adding ns '%s' as '%s']", namespace, prefix);
 #endif
     }
@@ -493,14 +489,14 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   int ntuples, i;
 
 #ifndef NDEBUG
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+  ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL,
 		"[CMS:DEBUG] Looking for `%s' : `%s'", name->ns,
 		name->name);
 #endif
 
   if (!db->conn)
     {
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "CLOSED DATABASE");
+      ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "CLOSED DATABASE");
       return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
 			    "[CMS:FATAL] Trying to access closed database.");
     }
@@ -522,7 +518,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
       (!strcmp (name->ns, "http://apache.org/dav/props/")))
   {
       *found = 0;
-      ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL,
+      ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL,
 		    "[Passing DAV: request]");
       return NULL;
   }
@@ -865,7 +861,7 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
 		     "Fatal Error: datbase error during  property existance check.");
     }
   exists = PQntuples (res);
-  ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "Existance check: '%d'",
+  ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL, "Existance check: '%d'",
 		exists);
   PQclear (res);
   return exists;
@@ -1070,10 +1066,9 @@ static dav_error *dav_cms_search_resource(request_rec * r, dav_response ** res)
     r->uri      = "http://localhost:9999/";
     r->filename = "proxy:http://localhost:9999/";
     r->handler  = "proxy-server";
-    ap_log_error (APLOG_MARK, APLOG_WARNING, 0, NULL, "%s request for %s", r->method, r->unparsed_uri);
+    ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL, "%s request for %s", r->method, r->unparsed_uri);
     return dav_new_error(r->pool, HTTP_BAD_REQUEST, 0, "Don't know how to handle SEARCH requests yet!");
     // * FIXME: won't work since we can't proxy at such a late time in the request handling */
-    return DECLINED;
 }
 
 const dav_hooks_propdb dav_cms_hooks_propdb = {
