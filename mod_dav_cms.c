@@ -59,7 +59,8 @@ static volatile char ident_string[] = "$Id$";
 dav_cms_dbh *dbh;
 
 /* FIXME: needs to be visible to 'dav_cms_props.c'*/
-   const dav_provider *dav_backend_provider;
+   
+const dav_provider *dav_backend_provider;
    dav_provider dav_cms_provider;
 
 /* forward-declare for use in configuration lookup */

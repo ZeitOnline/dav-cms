@@ -46,8 +46,8 @@ struct dav_db {
    * So, valid states are: 00, 10, 11.
    * Valid transfers are:  00 -> 10, 10 -> 11, 10 -> 00 and 11 -> 00;
    */
-  int                 DTL : 1;
-  int                 PTL : 1;
+  unsigned int        DTL : 1;
+  unsigned int        PTL : 1;
 };
 
 

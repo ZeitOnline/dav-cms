@@ -88,7 +88,7 @@ binary-arch: build install
 #	dh_installinfo
 	dh_installman
 	dh_link
-	dh_strip
+	dh_strip --dbg-package=libapache2-mod-dav-cms
 	dh_compress
 	dh_fixperms
 	dh_installdeb

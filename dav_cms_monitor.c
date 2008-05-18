@@ -58,13 +58,14 @@ static inline ensure_database ()
        * call 'getConnection()' that'll either return an existing
        * connection or try to (re)connect.
        */
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "no connection");
+      ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Database not yet conneced");
       dbh->dbh = PQconnectdb(dbh->dsn);
       if(!dbh->dbh)
 	{
 	  ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Fatal error: no connection");
 	  return OK;
 	}
+      else {ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Database connection estalished");}
     }
   return -1;
 }
@@ -150,7 +151,7 @@ dav_cms_move_props(request_rec *r, const char *src, const char *dest)
 {
 
     PGresult *res;
-    char * params[2];
+    const char * params[2];
     int ntuples = 0;
     
     params[0] = src;
@@ -182,7 +183,7 @@ dav_cms_copy_props(request_rec *r, const char *src, const char *dest)
   /* copy all the facts in the facts database ... */
 
     PGresult *res;
-    char * params[2];
+    const char * params[2];
     int ntuples = 0;
         
     params[0] = src;
@@ -214,7 +215,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
 {
 
     PGresult *res;
-    char * params[1];
+    const char * params[1];
     int ntuples = 0;
     
     params[0] = uri;

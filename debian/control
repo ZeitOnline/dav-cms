@@ -13,3 +13,11 @@ Description: Blah blah blah
  This is a module for the Apache HTTPD 2.0 which may be used in combination 
  with the included mod_dav to provide a WebDAV enabled Content Management System.
  .
+
+Package: libapache2-mod-dav-cms-dbg
+Architecture: any
+Section: libdevel
+Suggests: dav-cms-backend
+Depends: libapache2-mod-dav-cms(= ${Source-Version}), ${shlibs:Depends}, ${misc:Depends}, apache2.0-common | apache2.2-common
+Description: Debug symbols for libapache2-mod-dav-cms
+ .
