@@ -1,3 +1,11 @@
+mod-dav-cms (0.2.4zeit5ubuntu2) unstable; urgency=low
+
+  * More (hopefuly final) fixes for the transaction bug.
+  
+  * Changed logging during server startup. 
+
+ -- Ralf Mattes <rm@seid-online.de>  Wed, 21 May 2008 16:24:13 +0200
+
 mod-dav-cms (0.2.4zeit5ubuntu1) feisty; urgency=low
 
   * Fixed for transaction state inconsistency

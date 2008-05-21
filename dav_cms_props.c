@@ -249,8 +249,8 @@ dav_cms_rollback (dav_db * db)
                             "Fatal Error: weired transaction state during rollback!");;
     }
 
-  if (db->PTL == ON)
-    {
+  if ((db->DTL == ON) &&(db->PTL == ON))
+    {	
       res = PQexec (dbh->dbh, "ROLLBACK -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
           {
@@ -262,14 +262,14 @@ dav_cms_rollback (dav_db * db)
                                     /* "Error Message '%s'", Pqresultstatus(res) , PQresultErrorMessage(res)); */
           }
       PQclear (res);
-      db->DTL = db->DTL = OFF;
+      db->DTL = db->PTL = OFF;
       return NULL;
-    }
-  else
-      {
-          db->DTL = OFF;
+    }	
+  else	
+      {	
+          db->PTL = db->PTL = OFF;
           return NULL;
-      }
+      }	
 }
 
 /*=========================================================[ DAV PROPS CALLBACKS ]==*/
@@ -296,7 +296,6 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
   db->conn = dbh->dbh;
   db->cursor = NULL;
   db->pos = db->rows = 0;
-  *pdb = db;
 
   /* NOTE: this is a quick fix to ensure a consistent naming scheme for
    * collection resources. For now we normalize to a version _without_
@@ -312,18 +311,19 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
       }
       db->uri = curi;
   } 
-  else 
+  else
   {
       db->uri = apr_pstrdup(p, resource->uri); 
   } 
 
   /* NOTE: here we only indicate that we should be in a transaction.
-   * The actual transaction is only started the first time we access the
-   * database (for both read and delete).
+   * The actual (database) transaction is only started the first time
+   * we access the database (for both write and delete).
    */
   db->DTL = ON;
   db->PTL = OFF;
-  
+
+  *pdb = db;  
 #ifndef NDEBUG
   ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL,
 		"[cms]: Opening database '%s'", resource->uri);

@@ -246,7 +246,7 @@ const dav_provider *dav_backend_provider;
    * of the dav_cms_conf data.
    */
    #ifndef NDEBUG
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+      ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
          "[CMS]: Request to use '%s' as a backend DAV module.", arg1);
    #endif
       dav_backend_provider = NULL;
@@ -254,7 +254,7 @@ const dav_provider *dav_backend_provider;
       if(dav_backend_provider)
       {
       #ifndef NDEBUG
-         ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+         ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
             "[CMS]: Found backend DAV provider!");
       #endif
          return NULL;
@@ -284,7 +284,7 @@ const dav_provider *dav_backend_provider;
       conf = (dav_cms_server_conf *)ap_get_module_config(cmd->server->module_config, &dav_cms_module);
       conf->dsn = apr_pstrdup(cmd->pool, arg1);
    #ifndef NDEBUG
-      ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, 
+      ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
          "[CMS]: Request to use %s as a database server", conf->dsn);
    #endif
       return NULL;
