@@ -221,10 +221,29 @@ dav_cms_delete_props(request_rec *r, const char *uri)
     params[0] = uri;
     
     //- BEGIN WORK; 
-    res = PQexecParams(dbh->dbh, 
-                       "DELETE FROM facts "  
-                       "WHERE uri = $1",
-                       1, NULL, params, NULL, NULL, 0); 
+
+    /* NOTA BENE: currently we have a hard time to decide iff this
+     * resource is a collection (and hence we need to delete the
+     * properties of enclosed resources as well) or a simple
+     * resource. ModDAV _does_ know, but there's no deletition
+     * callback. Currently we need to rely on the fact that a
+     * collection uri ends with a '/'.
+     **/
+    if (uri[strlen(uri)] == '/') /* we handle a collection */
+        {
+            res = PQexecParams(dbh->dbh, 
+                               "DELETE FROM facts "  
+                               "WHERE uri like $1||'%'",
+                               1, NULL, params, NULL, NULL, 0); 
+            
+        } 
+    else 
+        {
+            res = PQexecParams(dbh->dbh, 
+                               "DELETE FROM facts "  
+                               "WHERE uri = $1",
+                               1, NULL, params, NULL, NULL, 0); 
+        }
     dav_cms_log(r, r->method, uri, "");
     //- COMMIT WORK;
     if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
