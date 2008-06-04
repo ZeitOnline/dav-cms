@@ -209,7 +209,7 @@ dav_cms_copy_props(request_rec *r, const char *src, const char *dest)
 }
 
 
-/* FIXME: do we need this here ? */
+/* FIXME: do we need this here ? Yes, this _is_ called from ModDAV */
 static int
 dav_cms_delete_props(request_rec *r, const char *uri)
 {
@@ -223,7 +223,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
     //- BEGIN WORK; 
     res = PQexecParams(dbh->dbh, 
                        "DELETE FROM facts "  
-                       "WHERE uri = $1)",
+                       "WHERE uri = $1",
                        1, NULL, params, NULL, NULL, 0); 
     dav_cms_log(r, r->method, uri, "");
     //- COMMIT WORK;
