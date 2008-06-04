@@ -229,7 +229,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
      * callback. Currently we need to rely on the fact that a
      * collection uri ends with a '/'.
      **/
-    if (uri[strlen(uri)] == '/') /* we handle a collection */
+    if (uri[strlen(uri)-1] == '/') /* we handle a collection */
         {
             res = PQexecParams(dbh->dbh, 
                                "DELETE FROM facts "  
