@@ -1,3 +1,9 @@
+mod-dav-cms (0.2.5zeit2) unstable; urgency=low
+
+  * Fixed a further transaction level bug.
+
+ -- Ralf Mattes <rm@seid-online.de>  Wed, 11 Jun 2008 10:50:21 +0200
+
 mod-dav-cms (0.2.5zeit1) feisty; urgency=low
 
   * Fixes property removal after deletition of collection.

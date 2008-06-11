@@ -233,7 +233,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
         {
             res = PQexecParams(dbh->dbh, 
                                "DELETE FROM facts "  
-                               "WHERE uri like $1||'%'",
+                               "WHERE uri LIKE $1||'%'",
                                1, NULL, params, NULL, NULL, 0); 
             
         } 

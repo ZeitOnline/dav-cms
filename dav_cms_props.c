@@ -3,7 +3,7 @@
  * Filespec: $Id$
  * 
  * Filename:      dav_cms_props.c
- * Author:        Ralf Mattes<rm@fabula.de>
+ * Author:        Ralf Mattes<rm@seid-online.de>
  *
  * 
  * This program is free software; you can redistribute it and/or
@@ -189,7 +189,9 @@ dav_cms_commit (dav_db * db)
       return CMS_FAIL;   
     }
 
-  if (!db->DTL)
+
+  /* Should never happen */
+  if ((!db->DTL) && (db->PTL))
     {
     /* We are in a weired state  */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
@@ -547,7 +549,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   tname = buffer;
   qlen += tlen;
 
-  qtempl = "SELECT uri, namespace, name, value FROM facts "
+  qtempl = "SELECT DISTINCT uri, namespace, name, value FROM facts "
     "WHERE uri = '%s' AND namespace ='%s' AND name = '%s'";
   qlen += strlen (qtempl);
   query = (char *) apr_palloc (db->pool, qlen);
@@ -898,8 +900,8 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
   if (db->cursor == NULL)
     {
       PGresult *res;
-      char *buffer, *qtempl, *query;
-      char *turi;
+      char     *buffer, *qtempl, *query;
+      char     *turi;
       size_t tlen, qlen;
 
 
@@ -915,7 +917,7 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
       turi = buffer;
       qlen += tlen;
 
-      qtempl = "SELECT namespace, name, value FROM facts " "WHERE uri = '%s'";
+      qtempl = "SELECT DISTINCT namespace, name, value FROM facts " "WHERE uri = '%s'";
       qlen += strlen (qtempl);
       query = (char *) apr_palloc (db->pool, qlen);
       snprintf (query, qlen, qtempl, turi);
