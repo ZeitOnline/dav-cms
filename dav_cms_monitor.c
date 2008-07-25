@@ -96,7 +96,9 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
       query = (char *) apr_palloc(r->pool, 2 * query_len);
       snprintf(query, query_len, trigger2_sql, r->method, src);
     }
+# ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "-> SQL '%s'", query);
+# endif
   res = PQexec(dbh->dbh, query);
   /* NOTE: it would be nice to be able to report back errors during
    * query execution, but, alas, where too late here, the response is
@@ -131,7 +133,9 @@ static int dav_cms_log_error(request_rec *r, const char *method, const char *src
       query = (char *) apr_palloc(r->pool, 2 * query_len);
       snprintf(query, query_len, trigger2_sql, r->method, src);
     }
+#ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "ERROR: -> SQL '%s'", query);
+# endif
   res = PQexec(dbh->dbh, query);
   /* NOTE: it would be nice to be able to report back errors during
    * query execution, but, alas, where too late here, the response is
@@ -310,8 +314,8 @@ int dav_cms_monitor(request_rec *r)
       /* what would that be ? 
        * Ok - nosw i know. LOCK, MKCOL, UNLOCK ...
        */
-       dav_cms_log(r, r->method, src, NULL);
       break;
     }
+  dav_cms_log(r, r->method, src, NULL);
   return OK;
 }

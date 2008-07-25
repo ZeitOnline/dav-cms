@@ -1,3 +1,9 @@
+mod-dav-cms (0.2.5zeit3) hardy; urgency=low
+
+  * Removed debugging code.
+  
+ -- R. Mattes <rm@seid-online.de>  Fri, 27 Jun 2008 00:24:49 +0200
+
 mod-dav-cms (0.2.5zeit2) unstable; urgency=low
 
   * Fixed a further transaction level bug.

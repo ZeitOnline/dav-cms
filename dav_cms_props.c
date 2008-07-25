@@ -1,4 +1,4 @@
-/**
+ /**
  *
  * Filespec: $Id$
  * 
@@ -749,7 +749,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
     {
       PQclear (res);
       return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
-			    "Fatal Error: datbase error during  property storage.");
+			    "Fatal Error: datbase error during  property storage. (dav_cms_db_store)");
     }
   PQclear (res);
 

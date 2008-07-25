@@ -49,6 +49,10 @@
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
 
+# ifndef NDEBUG
+# error Foo
+# endif
+
 static volatile char ident_string[] = "$Id$";
 
 /* FIXME: _no_ global/statics allowed! */

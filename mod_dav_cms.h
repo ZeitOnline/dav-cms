@@ -23,6 +23,7 @@ extern "C" {
 #define DAV_CMS_MODULE_NAME  "ZeitCMS"
 #define DAV_CMS_VERSION      "0.2c-foo"
 
+#define NDEBUG
 
 #define DAV_CMS_NS           "http://namespaces.zeit.de/CMS"
 #define DAV_CMS_NS_PREFIX    "CMS"
