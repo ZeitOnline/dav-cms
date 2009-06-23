@@ -248,7 +248,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
                                "WHERE uri = $1",
                                1, NULL, params, NULL, NULL, 0); 
         }
-    dav_cms_log(r, r->method, uri, "");
+    //dav_cms_log(r, r->method, uri, "");
     //- COMMIT WORK;
     if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
         {
