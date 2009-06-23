@@ -99,7 +99,32 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
 # ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "-> SQL '%s'", query);
 # endif
+
+  res = PQexec (dbh->dbh, "BEGIN -- Logging");
+  if (!res || (PQresultStatus (res) != PGRES_COMMAND_OK))
+      {
+	  PQclear (res);
+          ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Could not open logging transaction");
+	  return CMS_FAIL;
+      }
+  
   res = PQexec(dbh->dbh, query);
+  if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
+      {
+	  PQclear (res);
+          ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Could not log operation");
+	  return CMS_FAIL;
+      }
+    
+  
+  res = PQexec (dbh->dbh, "COMMIT -- Logging");
+  if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
+      {
+	  PQclear (res);
+          ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Could not commit logging transaction");
+	  return CMS_FAIL;
+      }
+  
   /* NOTE: it would be nice to be able to report back errors during
    * query execution, but, alas, where too late here, the response is
    * already out!
