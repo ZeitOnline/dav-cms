@@ -203,7 +203,7 @@ dav_cms_move_props(request_rec *r, const char *src, const char *dest)
      * as well, which is wrong!
      * FIXME: what about the canonical name of collection destinations?
      */
-    return dav_cms_log(r, r->method, src, dest);
+    return OK;
 }
 
 static int
@@ -262,7 +262,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
         {
             res = PQexecParams(dbh->dbh, 
                                "DELETE FROM facts "  
-                               "WHERE uri LIKE $1||'%'",
+                               "WHERE uri LIKE i($1||'%')::text",
                                1, NULL, params, NULL, NULL, 0); 
             
         } 
@@ -284,7 +284,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
     /* FIXME: what about the canonical name of collection destinations?
      */
     
-    return  dav_cms_log(r, r->method, uri, "");  
+    return  OK;
 
 }
 
