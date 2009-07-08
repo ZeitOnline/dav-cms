@@ -21,7 +21,7 @@ extern "C" {
 #define DAV_CMS_PROVIDER     "zeit-cms"
 #define DAV_DEFAULT_BACKEND  "filesystem"
 #define DAV_CMS_MODULE_NAME  "ZeitCMS"
-#define DAV_CMS_VERSION      "0.2c-foo"
+#define DAV_CMS_VERSION      "0.2d-bugfix"
 
 #define NDEBUG
 

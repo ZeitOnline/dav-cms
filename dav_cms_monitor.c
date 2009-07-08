@@ -16,11 +16,8 @@
 #include "dav_cms_monitor.h"
 
 
-static char trigger1_sql[] =
-"INSERT INTO triggers VALUES ('%s', '%s', '%s')";
-
-static char trigger2_sql[] =
-"INSERT INTO triggers VALUES ('%s', '%s')";
+static char trigger_sql[] =
+"INSERT INTO triggers VALUES ($1, $2, $3)";
  
 static char *
 dav_cms_lookup_destination(request_rec *r)
@@ -73,29 +70,20 @@ static inline ensure_database ()
 static int dav_cms_log(request_rec *r, const char *method, const char *src, const char *dest)
 {
   PGresult   *res;
-  char       *query;
-  size_t      src_len, dest_len, query_len;
+  const char       * params[2];
   
-  query_len = src_len = dest_len = 0;
-  src_len   = strlen(src);
- 
-  if(dest)
-    {
-      query_len  += strlen(method);
-      query_len  += strlen(src);
-      query_len  += strlen(dest);
-      query_len  += strlen(trigger1_sql);
-      query = (char *) apr_palloc(r->pool, 2 * query_len);
-      snprintf(query, query_len, trigger1_sql, r->method, src, dest);
-    }
-  else 
-    {
-      query_len  += strlen(method);
-      query_len  += strlen(src);
-      query_len  += strlen(trigger2_sql);
-      query = (char *) apr_palloc(r->pool, 2 * query_len);
-      snprintf(query, query_len, trigger2_sql, r->method, src);
-    }
+  
+   params[0] = method;
+   params[1] = src;
+   if(dest)
+       {
+           params[2] = dest;
+       }
+   else 
+       {
+           params[2] = NULL;
+       }
+  
 # ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "-> SQL '%s'", query);
 # endif
@@ -108,11 +96,15 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
 	  return CMS_FAIL;
       }
   
-  res = PQexec(dbh->dbh, query);
+  //res = PQexec(dbh->dbh, query);
+  res = PQexecParams(dbh->dbh, trigger_sql,
+                     3, NULL, params, NULL, NULL, 0);
+
   if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
       {
 	  PQclear (res);
           ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Could not log operation");
+          //FIXME: we need a rollback here ...
 	  return CMS_FAIL;
       }
     
@@ -126,7 +118,7 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
       }
   
   /* NOTE: it would be nice to be able to report back errors during
-   * query execution, but, alas, where too late here, the response is
+   * query execution, but, alas, we're too late here, the response is
    * already out!
    */
   return OK;
@@ -135,33 +127,26 @@ static int dav_cms_log(request_rec *r, const char *method, const char *src, cons
 static int dav_cms_log_error(request_rec *r, const char *method, const char *src, const char *dest)
 {
   PGresult   *res;
-  char       *query;
-  size_t      src_len, dest_len, query_len;
+  const char       * params[2];
   
-  query_len = src_len = dest_len = 0;
-  src_len   = strlen(src);
- 
-  if(dest)
-    {
-      query_len  += strlen(method);
-      query_len  += strlen(src);
-      query_len  += strlen(dest);
-      query_len  += strlen(trigger1_sql);
-      query = (char *) apr_palloc(r->pool, 2 * query_len);
-      snprintf(query, query_len, trigger1_sql, r->method, src, dest);
-    }
-  else 
-    {
-      query_len  += strlen(method);
-      query_len  += strlen(src);
-      query_len  += strlen(trigger2_sql);
-      query = (char *) apr_palloc(r->pool, 2 * query_len);
-      snprintf(query, query_len, trigger2_sql, r->method, src);
-    }
+   params[0] = method;
+   params[1] = src;
+   if(dest)
+       {
+           params[2] = dest;
+       }
+   else 
+       {
+           params[2] = NULL;
+       }
+   
 #ifndef NDEBUG
   ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL, "ERROR: -> SQL '%s'", query);
 # endif
-  res = PQexec(dbh->dbh, query);
+  //  res = PQexec(dbh->dbh, query);
+  res = PQexecParams(dbh->dbh, trigger_sql,
+                     3, NULL, params, NULL, NULL, 0);
+
   /* NOTE: it would be nice to be able to report back errors during
    * query execution, but, alas, where too late here, the response is
    * already out!

@@ -134,9 +134,9 @@ const dav_provider *dav_backend_provider;
             PQfinish(dbh->dbh);
          dbh->dbh = NULL;
          dbh = NULL;
-#        ifndef NDEBUG
+//#        ifndef NDEBUG
 	 ap_log_error(APLOG_MARK, APLOG_WARNING, 0, NULL,  "[cms]: Closed database connection");
-#        endif
+//#        endif
       }
       return APR_SUCCESS;
    }
