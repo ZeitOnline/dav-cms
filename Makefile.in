@@ -7,7 +7,7 @@ PG_CONFIG  = @PGCONFIG@
 
 SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c
 
-HEADERS  = dav_cms_monitor.h dav_cms_props.h mod_dav_cms.h
+HEADERS  = dav_cms_monitor.h dav_cms_props.h mod_dav_cms.h svn_revision.h
 
 INCLUDES = `$(APR_CONFIG) --includes` \
            -I`$(PG_CONFIG) --includedir`
@@ -24,7 +24,7 @@ install: .libs/mod_dav_cms.so
 	$(APXS) -i  -n 'mod_dav_cms' .libs/mod_dav_cms.so  
 
 clean:
-        -rm -rf ./.libs/
+	-rm -rf ./.libs/
 
 distclean: clean
 	-rm config.guess  config.log  config.status  config.sub 
@@ -32,6 +32,9 @@ distclean: clean
 restart:
 	$(APACHECTL) stop
 	$(APACHECTL) start
+
+svn_revision.h: svn_revision.h.in
+	sed -e s/@@SVN_BLOBAL_VERSION@@/`svnversion`/  svn_revision.h.in > svn_revision.h
 
 # 
 # install -m 600 -o www-data .libs/mod_dav_cms.so $(DESTDIR) 

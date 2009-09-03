@@ -24,7 +24,7 @@ else
 	CFLAGS += -O2
 endif
 
-config.status: configure
+config.status: configure Makefile.in
 	dh_testdir
 	# Add here commands to configure the package.
 	CFLAGS="$(CFLAGS) -Wl,-z,defs" ./configure \
@@ -50,6 +50,7 @@ build-stamp:  config.status
 	touch build-stamp
 
 clean:
+	-make clean
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp 
