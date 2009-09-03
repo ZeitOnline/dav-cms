@@ -1,0 +1,2 @@
+#define SVN_ID       "@@SVN_BLOBAL_VERSION@@"
+#define SVN_REVISION "$Rev$"
