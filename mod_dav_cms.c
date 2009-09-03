@@ -48,6 +48,7 @@
 #include "mod_dav_cms.h"
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
+#include "svn_revision.h"
 
 # ifndef NDEBUG
 # error Foo
@@ -167,7 +168,7 @@ const dav_provider *dav_backend_provider;
    {
       dav_cms_server_conf *conf;
    
-      ap_add_version_component(pchild, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION " (" SVN_ID ")");
+      ap_add_version_component(pchild, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION " (Version: " SVN_ID ")");
    
    /* FIXME: how do i get my hands on 'conf' */
       conf = (dav_cms_server_conf *)ap_get_module_config(server->module_config, &dav_cms_module);
