@@ -245,10 +245,18 @@ dav_cms_delete_props(request_rec *r, const char *uri)
      **/
     if (uri[strlen(uri)-1] == '/') /* we handle a collection */
         {
-            res = PQexecParams(dbh->dbh, 
-                               "DELETE FROM facts "  
-                               "WHERE uri LIKE ($1||'%')::text",
-                               1, NULL, params, NULL, NULL, 0); 
+            // 
+            char *query_buffer;
+            
+            query_buffer = apr_psprintf (r->pool, 
+                                         "DELETE FROM facts WHERE "
+                                         "uri LIKE '%s%%'", uri);
+            // ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Will run following query:\n%s", query_buffer);
+            res = PQexec(dbh->dbh, query_buffer);
+            /* res = PQexecParams(dbh->dbh,  */
+            /*                    "DELETE FROM facts "   */
+            /*                    "WHERE uri LIKE ($1||'%')::text", */
+            /*                    1, NULL, params, NULL, NULL, 0);  */
             
         } 
     else 
@@ -262,15 +270,21 @@ dav_cms_delete_props(request_rec *r, const char *uri)
     //- COMMIT WORK;
     if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
         {
-            return dav_cms_log_error(r, r->method, uri, "");
+            goto FAIL;
         }
     ntuples = PQntuples (res);
-
+    
     /* FIXME: what about the canonical name of collection destinations?
      */
     
     return  OK;
-
+ FAIL:
+    if (res)
+        {
+            PQclear(res);
+            return dav_cms_log_error(r, r->method, uri, "");
+        }
+    
 }
 
 /* Dummy implemetation for now */
