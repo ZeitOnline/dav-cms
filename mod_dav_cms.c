@@ -194,7 +194,7 @@ const dav_provider *dav_backend_provider;
       /* ... and register a cleanup */
       apr_pool_cleanup_register(pchild, NULL, 
 				dav_cms_child_destroy, 
-				dav_cms_child_destroy);
+				apr_pool_cleanup_null);
       return OK;
    }
 
