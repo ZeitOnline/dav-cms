@@ -588,7 +588,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
        */
 
       /* Honk: This is a hack we need to ensure proper namespace storage.  Iff
-       * we store a structured value /with possibly multiple namesapces) we
+       * we store a structured value (with possibly multiple namesapces) we
        * need to store the full value tree (i.e. including the property name
        * tag) to catch all relevant namespace declarations. Hence we can just
        * output the stored xml.

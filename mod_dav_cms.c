@@ -44,11 +44,15 @@
 #include <ap_config.h>
 #include <apr_strings.h>
 #include <mod_dav.h>
-#include <postgresql/libpq-fe.h>
+
 #include "mod_dav_cms.h"
+#include "dav_cms_repro.h"
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
 #include "svn_revision.h"
+
+/* for memcpy/bcopy etc. */
+#include <strings.h>
 
 # ifndef NDEBUG
 # error Foo
@@ -64,13 +68,16 @@ static volatile char ident_string[] = "$Id$";
 dav_cms_dbh *dbh;
 
 /* FIXME: needs to be visible to 'dav_cms_props.c'*/
-   
-const dav_provider *dav_backend_provider;
-   dav_provider dav_cms_provider;
+
+const dav_provider         *dav_backend_provider;
+dav_provider                dav_cms_provider;
+const struct dav_hooks_repository *orig_repos_vt;
+struct dav_hooks_repository       *dav_cms_repos_vt;
 
 /* forward-declare for use in configuration lookup */
    module AP_MODULE_DECLARE_DATA dav_cms_module;
 
+/* FIXME: This needs an extra pool parameter to allocate memory for the patched structs */   
    void
    dav_cms_patch_provider(const char *newprov)
    {
@@ -98,14 +105,24 @@ const dav_provider *dav_backend_provider;
 #ifndef NDEBUG
               ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "[CMS]: Found backend DAV provider!");
 #endif
+      /* save the original repository vtable */
+              size_t blobsize = sizeof(struct dav_hooks_repository);
+              orig_repos_vt = dav_backend_provider->repos; 
+              dav_cms_repos_vt = malloc(blobsize);
+              bzero(dav_cms_repos_vt, blobsize);
+              bcopy(orig_repos_vt, dav_cms_repos_vt, blobsize); 
+              
+              dav_cms_repos_vt->get_resource = dav_cms_get_resource;
+                  
       /* patch the provider table */
-         dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
+
          dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
          dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
          dav_cms_provider.binding = dav_backend_provider->binding;   /* alias/link       */
       /* insert our functionality */
          dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
          dav_cms_provider.search  = &dav_cms_hooks_search;         
+         dav_cms_provider.repos   = dav_cms_repos_vt;              
       }
    }
 

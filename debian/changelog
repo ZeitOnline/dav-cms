@@ -1,3 +1,10 @@
+mod-dav-cms (0.3.0zeit2) unstable; urgency=low
+
+  * Added build dependency on uuid-dev (needed for the 
+    UUID generating code).
+
+ -- Ralf Mattes <rm@mh-freiburg.de>  Thu, 27 May 2010 15:30:23 +0200
+
 mod-dav-cms (0.3.0zeit1) unstable; urgency=low
 
   * New upstream.

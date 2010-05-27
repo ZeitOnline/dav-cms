@@ -60,3 +60,14 @@
   req.uri = 'http://www.dscpl.com.au' + path
   req.filename = 'proxy:%s' % req.uri
   req.handler = 'proxy-server'
+
+* Unique Document IDs
+** Will use UUIDs
+
+** Implementation
+
+*** Currently a property 
+ -  ns="http://namespaces.zeit.de/CMS/document" 
+    name="uuid" 
+    format: {urn:uuid:e8e7ac75-4ae2-4564-9c70-9c2056aaa43a}
+

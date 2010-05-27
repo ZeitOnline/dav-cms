@@ -5,7 +5,7 @@ APR_CONFIG = @APRCONFIG@
 APACHECTL  = @APACHECTL@
 PG_CONFIG  = @PGCONFIG@
 
-SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c
+SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c dav_cms_repro.c
 
 HEADERS  = dav_cms_monitor.h dav_cms_props.h mod_dav_cms.h svn_revision.h
 
