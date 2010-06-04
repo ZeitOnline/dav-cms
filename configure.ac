@@ -1,7 +1,7 @@
 # -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 #
-# Copyright 2003-2007 R. Mattes <rm@seid-online.de>
+# Copyright 2003-2007, 2010 R. Mattes <rm@seid-online.de>
 #
 # Licence: GPL
 #
@@ -56,6 +56,8 @@ if test "x$PGCONFIG" = "xnotfound" ; then
     AC_MSG_ERROR([*** Sorry, could not find pg_config ***])
 fi
 
+
+PKG_CHECK_MODULES([DAV_CMS], [uuid])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

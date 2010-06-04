@@ -10,10 +10,10 @@ SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c dav_cms_repro.c
 HEADERS  = dav_cms_monitor.h dav_cms_props.h mod_dav_cms.h svn_revision.h
 
 INCLUDES = `$(APR_CONFIG) --includes` \
-           -I`$(PG_CONFIG) --includedir`
+           -I`$(PG_CONFIG) --includedir` @DAV_CMS_CFLAGS@
 
 LDFLAGS  = `$(APR_CONFIG) --link-ld --libs` \
-           -L `$(PG_CONFIG) --libdir` -lpq
+           -L `$(PG_CONFIG) --libdir` -lpq @DAV_CMS_LIBS@
 
 DESTDIR  = `$(APXS) -q LIBEXECDIR`
 
