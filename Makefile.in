@@ -19,7 +19,7 @@ HEADERS  = $(srcdir)/dav_cms_monitor.h \
 
 
 INCLUDES = `$(APR_CONFIG) --includes` \
-           -I`$(PG_CONFIG) --includedir` -I. @DAV_CMS_CFLAGS@
+           -I`$(PG_CONFIG) --includedir` -I.
 
 LDFLAGS  = `$(APR_CONFIG) --link-ld --libs` \
            -L `$(PG_CONFIG) --libdir` -lpq @DAV_CMS_LIBS@
