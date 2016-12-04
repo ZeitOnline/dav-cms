@@ -5,12 +5,21 @@ APR_CONFIG = @APRCONFIG@
 APACHECTL  = @APACHECTL@
 PG_CONFIG  = @PGCONFIG@
 
-SRC      = mod_dav_cms.c dav_cms_monitor.c dav_cms_props.c dav_cms_repro.c
+srcdir     = @srcdir@
+VPATH      = @srcdir@
 
-HEADERS  = dav_cms_monitor.h dav_cms_props.h mod_dav_cms.h svn_revision.h
+SRC      = $(srcdir)/mod_dav_cms.c \
+	   $(srcdir)/dav_cms_monitor.c \
+	   $(srcdir)/dav_cms_props.c
+
+HEADERS  = $(srcdir)/dav_cms_monitor.h \
+           $(srcdir)/dav_cms_props.h \
+           $(srcdir)/mod_dav_cms.h \
+	   svn_revision.h
+
 
 INCLUDES = `$(APR_CONFIG) --includes` \
-           -I`$(PG_CONFIG) --includedir` @DAV_CMS_CFLAGS@
+           -I`$(PG_CONFIG) --includedir` -I. @DAV_CMS_CFLAGS@
 
 LDFLAGS  = `$(APR_CONFIG) --link-ld --libs` \
            -L `$(PG_CONFIG) --libdir` -lpq @DAV_CMS_LIBS@
@@ -21,20 +30,20 @@ all: $(SRC) $(HEADERS)
 	$(APXS) -I$(INCLUDES) $(LDFLAGS) -c $(SRC)
 
 install: .libs/mod_dav_cms.so
-	$(APXS) -i  -n 'mod_dav_cms' .libs/mod_dav_cms.so  
+	$(APXS) -i  -n 'mod_dav_cms' .libs/mod_dav_cms.so
 
 clean:
 	-rm -rf ./.libs/
 
 distclean: clean
-	-rm config.guess  config.log  config.status  config.sub 
+	-rm config.guess  config.log  config.status  config.sub
 
 restart:
 	$(APACHECTL) stop
 	$(APACHECTL) start
 
-svn_revision.h: svn_revision.h.in
-	sed -e s/@@SVN_BLOBAL_VERSION@@/`svnversion`/  svn_revision.h.in > svn_revision.h
+svn_revision.h: $(srcdir)/svn_revision.h.in
+	sed -e s/@@GIT_GENERATION@@/`git log --oneline | wc -l`/  $(srcdir)/svn_revision.h.in > svn_revision.h
 
-# 
-# install -m 600 -o www-data .libs/mod_dav_cms.so $(DESTDIR) 
+#
+# install -m 600 -o www-data .libs/mod_dav_cms.so $(DESTDIR)
