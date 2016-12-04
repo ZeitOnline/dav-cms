@@ -2,7 +2,7 @@
  * Filespec: $Id$
  *
  * Filename:      mod_dav_cms.c
- * Author:        <rm@fabula.de> 
+ * Author:        <rm@seid-online.de> 
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -44,15 +44,11 @@
 #include <ap_config.h>
 #include <apr_strings.h>
 #include <mod_dav.h>
-
+#include <postgresql/libpq-fe.h>
 #include "mod_dav_cms.h"
-#include "dav_cms_repro.h"
 #include "dav_cms_props.h"
 #include "dav_cms_monitor.h"
 #include "svn_revision.h"
-
-/* for memcpy/bcopy etc. */
-#include <strings.h>
 
 # ifndef NDEBUG
 # error Foo
@@ -61,66 +57,56 @@
 static volatile char ident_string[] = "$Id$";
 
 /* FIXME: _no_ global/statics allowed! */
-
 /* FIXME: This _will_ break terribly if used
  * in threaded code!
  */
 
 dav_cms_dbh *dbh;
 
-/* FIXME: the following needs to be visible to 'dav_cms_props.c' and
- * 'dav_cms_repos.c'. Maybe we should move this to a conf struct and
- * put it into the provider's private contex .
- */
-
-const dav_provider         *dav_backend_provider;
-dav_provider                dav_cms_provider;
-const struct dav_hooks_repository *orig_repos_vt;
-struct dav_hooks_repository       *dav_cms_repos_vt;
+/* FIXME: needs to be visible to 'dav_cms_props.c'*/
+   
+const dav_provider *dav_backend_provider;
+   dav_provider dav_cms_provider;
 
 /* forward-declare for use in configuration lookup */
    module AP_MODULE_DECLARE_DATA dav_cms_module;
 
-/* FIXME: This needs an extra pool parameter to allocate memory for the patched structs */   
    void
    dav_cms_patch_provider(const char *newprov)
    {
       char *prov;
    
-      prov =  newprov ? (char *) newprov : DAV_DEFAULT_BACKEND;   
+      if (newprov)
+      {
+         prov = (char *) newprov;
+      }
+      else
+      {
+         prov = DAV_DEFAULT_BACKEND;
+      }
+   
       dav_backend_provider = NULL;
       dav_backend_provider = dav_lookup_provider(prov);
       if(!dav_backend_provider)
           {
               ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
-                           "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", prov);
+                           "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", DAV_DEFAULT_BACKEND);
               exit (0);
           }
       else
           {
-              //#ifndef NDEBUG
-              ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "[CMS]: Found backend DAV provider (%s)!", prov);
-              //#endif
-              /* save the original repository vtable */
-              size_t blobsize = sizeof(struct dav_hooks_repository);
-              orig_repos_vt = dav_backend_provider->repos; 
-              dav_cms_repos_vt = malloc(blobsize);
-              bzero(dav_cms_repos_vt, blobsize);
-              bcopy(orig_repos_vt, dav_cms_repos_vt, blobsize); 
-              //dav_cms_repos_vt->get_resource  = dav_cms_get_resource;
-              //dav_cms_repos_vt->move_resource = dav_cms_move_resource_i;    
-              dav_cms_repos_vt->copy_resource = dav_cms_copy_resource_i;    
-              dav_cms_repos_vt->handle_get = 0;
-              /* patch the provider table */
-              dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
-              dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
-              dav_cms_provider.binding = dav_backend_provider->binding;   /* alias/link       */
-
-              /* insert our functionality */
-              dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
-              dav_cms_provider.search  = &dav_cms_hooks_search;         
-              dav_cms_provider.repos   = dav_cms_repos_vt;              
-          }
+#ifndef NDEBUG
+              ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, "[CMS]: Found backend DAV provider!");
+#endif
+      /* patch the provider table */
+         dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
+         dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
+         dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
+         dav_cms_provider.binding = dav_backend_provider->binding;   /* alias/link       */
+      /* insert our functionality */
+         dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
+         dav_cms_provider.search  = &dav_cms_hooks_search;         
+      }
    }
 
 
@@ -194,24 +180,27 @@ struct dav_hooks_repository       *dav_cms_repos_vt;
       if(!dbh)
 	dbh = (dav_cms_dbh *)apr_palloc(pchild, sizeof(dav_cms_dbh));
    
-      if(dbh) {
-          printf("DSN is: %s", conf->dsn); 
-          dbh->dsn = apr_pstrdup(pchild, conf->dsn);
-          dbh->dbh = NULL;
+      if(dbh)
+      {
+         printf("DSN is: %s", conf->dsn); 
+         dbh->dsn = apr_pstrdup(pchild, conf->dsn);
+         dbh->dbh = NULL;
+      } 
+      else 
+      {
+         exit(255);
       }
-      else {
-          exit(255);
-      }
-      
-      /* ... and register a cleanup */
-      apr_pool_cleanup_register(pchild, NULL, 
-				dav_cms_child_destroy, 
-				apr_pool_cleanup_null);
+   
       return OK;
    }
 
 
+static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
+{
+    apr_pool_cleanup_register(p, NULL, dav_cms_child_destroy, apr_pool_cleanup_null);
+}
 
+
 /**
  * Callback functions for configuration commands.
  */
@@ -270,24 +259,23 @@ struct dav_hooks_repository       *dav_cms_repos_vt;
       dav_backend_provider = dav_lookup_provider(arg1);
       if(dav_backend_provider)
       {
-          //#ifndef NDEBUG
-          ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
+      #ifndef NDEBUG
+         ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
             "[CMS]: Found backend DAV provider!");
-          //#endif
-          // return NULL;
+      #endif
+         return NULL;
          conf->backend = apr_pstrdup(cmd->pool, arg1);
-         /* patch the provider table */
-         /* dav_cms_provider.repos   = dav_backend_provider->repos;     */
-         /* dav_cms_provider.locks   = dav_backend_provider->locks;     */
-         /* dav_cms_provider.vsn     = dav_backend_provider->vsn;       */
-         /* dav_cms_provider.binding = dav_backend_provider->binding;  */
-         /* dav_cms_provider.repos   = dav_cms_repos_vt; */
+      /* patch the provider table */
+         dav_cms_provider.repos   = dav_backend_provider->repos;     /* storage          */
+         dav_cms_provider.locks   = dav_backend_provider->locks;     /* resource locking */
+         dav_cms_provider.vsn     = dav_backend_provider->vsn;       /* version control  */
+         dav_cms_provider.binding = dav_backend_provider->binding;   /* ???              */
          return NULL;
       }
       else 
       {
          ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
-                      "[CMS]: Couldn't get backend DAV provider");
+            "[CMS]: Couldn't get backend DAV provider");
          return "\tCMSbackend: no DAV provider with that name.";
       }
    }
@@ -329,26 +317,26 @@ struct dav_hooks_repository       *dav_cms_repos_vt;
 
    static void dav_cms_register_hooks(apr_pool_t *p)
    {
-       dav_cms_patch_provider((char *)NULL);
-       /* Apache2 mod_dav hooks we provide */
-       dav_register_provider(p, DAV_CMS_PROVIDER, &dav_cms_provider);
-       /* Apache2 hooks we provide */
-       ap_hook_post_config(dav_cms_init, NULL, NULL, APR_HOOK_MIDDLE);
-       ap_hook_log_transaction(dav_cms_monitor ,NULL, NULL, APR_HOOK_MIDDLE);
+      dav_cms_patch_provider((char *)NULL);
+   /* Apache2 hooks we provide */
+      ap_hook_child_init(dav_cms_child_init, NULL, NULL, APR_HOOK_MIDDLE);
+      ap_hook_post_config(dav_cms_init, NULL, NULL, APR_HOOK_MIDDLE);
+      ap_hook_log_transaction(dav_cms_monitor ,NULL, NULL, APR_HOOK_MIDDLE);
+   /* Apache2 mod_dav hooks we provide */
+      ap_hook_fixups(dav_cms_ensure_uuid, NULL, NULL, APR_HOOK_MIDDLE);
+      dav_register_provider(p, DAV_CMS_PROVIDER, &dav_cms_provider);
    }
 
 /* Dispatch list for API hooks */
-module AP_MODULE_DECLARE_DATA dav_cms_module = {
-    STANDARD20_MODULE_STUFF, 
-    dav_cms_create_dir_conf,      /* create per-dir    config structures */
-    dav_cms_merge_dir_conf,       /* merge  per-dir    config structures */
-    dav_cms_create_server_conf,   /* create per-server config structures */
-    dav_cms_merge_server_conf,    /* merge  per-server config structures */
-    dav_cms_cmds,                 /* table of config file commands       */
-    dav_cms_register_hooks,       /* register hooks                      */
-
-
-};
+   module AP_MODULE_DECLARE_DATA dav_cms_module = {
+   STANDARD20_MODULE_STUFF, 
+   dav_cms_create_dir_conf,      /* create per-dir    config structures */
+   dav_cms_merge_dir_conf,       /* merge  per-dir    config structures */
+   dav_cms_create_server_conf,   /* create per-server config structures */
+   dav_cms_merge_server_conf,    /* merge  per-server config structures */
+   dav_cms_cmds,                 /* table of config file commands       */
+   dav_cms_register_hooks        /* register hooks                      */
+   };
 
 
 /* 

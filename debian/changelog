@@ -1,9 +1,38 @@
-mod-dav-cms (0.3.0zeit2) unstable; urgency=low
+mod-dav-cms (0.4.1zeit5) unstable; urgency=low
 
-  * Added build dependency on uuid-dev (needed for the 
-    UUID generating code).
+  * Fixed transaction handling and 'missing symbol' bug.
 
- -- Ralf Mattes <rm@mh-freiburg.de>  Thu, 27 May 2010 15:30:23 +0200
+ -- Ralf Mattes <rm@seid-online.de>  Thu, 07 Mar 2013 00:41:19 +0100
+
+mod-dav-cms (0.4.1zeit4) unstable; urgency=high
+
+  * Fixed 'MOVE resouce' bug causing duplicated properties
+
+ -- Ralf Mattes <rm@seid-online.de>  Wed, 06 Mar 2013 15:53:46 +0100
+
+mod-dav-cms (0.4.1zeit3) unstable; urgency=high
+
+  * Removed even more debugging output.
+
+ -- Ralf Mattes <rm@seid-online.de>  Wed, 21 Mar 2012 17:36:26 +0100
+
+mod-dav-cms (0.4.1zeit2) unstable; urgency=high
+
+  * Removed debugging message that flooded the log file.
+
+ -- Ralf Mattes <rm@seid-online.de>  Wed, 21 Mar 2012 16:05:46 +0100
+
+mod-dav-cms (0.4.1zeit1) unstable; urgency=high
+
+  * Fixed dropping of connection to postgres
+
+ -- Ralf Mattes <rm@seid-online.de>  Mon, 05 Dec 2011 13:41:32 +0100
+
+mod-dav-cms (0.4.0zeit1) unstable; urgency=high
+
+  * First implemetation of UUDI generation assignment.
+
+ -- Ralf Mattes <rm@seid-online.de>  Tue, 10 Aug 2010 09:24:29 +0200
 
 mod-dav-cms (0.3.0zeit1) unstable; urgency=low
 
@@ -11,13 +40,12 @@ mod-dav-cms (0.3.0zeit1) unstable; urgency=low
 
   * (Temporay) fix for recursive deletition of properties.
 
-
- -- Ralf Mattes <rm@mh-freiburg.de>  Fri, 04 Sep 2009 16:58:13 +0200
+ -- Ralf Mattes <rm@seid-online.de>  Fri, 04 Sep 2009 16:58:13 +0200
 
 mod-dav-cms (0.2.5zeit3) hardy; urgency=low
 
   * Removed debugging code.
-  
+
  -- R. Mattes <rm@seid-online.de>  Fri, 27 Jun 2008 00:24:49 +0200
 
 mod-dav-cms (0.2.5zeit2) unstable; urgency=low
@@ -35,8 +63,8 @@ mod-dav-cms (0.2.5zeit1) feisty; urgency=low
 mod-dav-cms (0.2.4zeit5ubuntu2) unstable; urgency=low
 
   * More (hopefuly final) fixes for the transaction bug.
-  
-  * Changed logging during server startup. 
+
+  * Changed logging during server startup.
 
  -- Ralf Mattes <rm@seid-online.de>  Wed, 21 May 2008 16:24:13 +0200
 
@@ -66,7 +94,7 @@ mod-dav-cms (0.2.3zeit3) feisty; urgency=low
 
 mod-dav-cms (0.2.3zeit2) feisty; urgency=low
 
-  * Fixed missing 'break' in HTTP-Method dispatching case 
+  * Fixed missing 'break' in HTTP-Method dispatching case
     statement that resulted in MOVEs where COPY was intended.
 
  -- R. Mattes <rm@tuxteam.zeit.de>  Fri, 18 Apr 2008 12:51:49 +0200
@@ -101,7 +129,7 @@ mod-dav-cms (0.2.1) unstable; urgency=low
 
   * Implemented a first _possible_ solution to namespace
     handling in strucured/mixed content properties.
-  
+
   * Fixed output of string only values.
 
  -- Ralf Mattes <rm@mh-freiburg.de>  Sun, 10 Jun 2007 16:14:33 +0200
@@ -111,4 +139,3 @@ mod-dav-cms (0.2.0) unstable; urgency=low
   * Initial Debianization.
 
  -- R. Mattes <rm@seid-online.de>  Mon,  4 Jun 2007 16:32:41 +0200
-

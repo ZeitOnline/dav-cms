@@ -10,8 +10,6 @@
   * @section Server Configuration
  */
 
-#include <postgresql/libpq-fe.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -113,12 +111,11 @@ extern "C" {
    */
   extern        dav_provider  dav_cms_provider;  
   extern  const dav_provider *dav_backend_provider;
-
-  extern const struct dav_hooks_repository *orig_repos_vt;
-  extern struct dav_hooks_repository       *dav_cms_repos_vt;
-
   extern        dav_cms_dbh  *dbh;
 
+
+int
+dav_cms_ensure_uuid(request_rec *r);
 
 #ifdef __cplusplus
 }
