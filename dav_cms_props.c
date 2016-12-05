@@ -1,21 +1,21 @@
  /**
  *
  * Filespec: $Id$
- * 
+ *
  * Filename:      dav_cms_props.c
  * Author:        Ralf Mattes<rm@seid-online.de>
  *
- * 
+ *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
@@ -65,15 +65,15 @@ dav_cms_db_connect (dav_cms_dbh * database)
       database->dbh = PQconnectdb (database->dsn);
       if (PQstatus (database->dbh) == CONNECTION_BAD)
 	{
-	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "[cms]: Database error '%s'", 
+	  ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "[cms]: Database error '%s'",
                         PQerrorMessage (database->dbh));
 	  PQfinish (database->dbh);
 	  database->dbh = NULL;
 	  return CMS_FAIL;
 	}
-      ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL, 
+      ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL,
                     "[cms]: Connected to backend with the following options (%s):", database->dsn);
-      
+
       {
 	PQconninfoOption *info, *i;
 	info = i = PQconndefaults ();
@@ -90,7 +90,7 @@ dav_cms_db_connect (dav_cms_dbh * database)
 
 /**
  * Close the connection to the database backend.
- * database. 
+ * database.
  * @param database a pointer to a \c dav_cms_dbh
  * @returns CMS_OK on success or the appropriate error code in case
  * of failure.
@@ -107,7 +107,7 @@ dav_cms_db_disconnect (dav_cms_dbh * db)
 
   if (database->dbh)
     {
-        /*FIXME: will this be called too often ? 
+        /*FIXME: will this be called too often ?
          *  PQfinish (database->dbh);
          *  database->dbh = NULL;
          */
@@ -177,7 +177,7 @@ dav_cms_commit (dav_db * db)
   if (!db)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_ensure_transaction for '%s' in weired context (NULL db)." , 
+		    "[cms]: dav_cms_ensure_transaction for '%s' in weired context (NULL db)." ,
                     db->uri);
       return CMS_FAIL;
     }
@@ -187,7 +187,7 @@ dav_cms_commit (dav_db * db)
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
 		    "[cms]: dav_cms_ensure_transaction for '%s' without postgresql connection.",
                     db->uri);
-      return CMS_FAIL;   
+      return CMS_FAIL;
     }
 
 
@@ -196,12 +196,12 @@ dav_cms_commit (dav_db * db)
     {
     /* We are in a weired state  */
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
-		    "[cms]: dav_cms_commit for '%s' in weired transaction state (%d%d)", 
+		    "[cms]: dav_cms_commit for '%s' in weired transaction state (%d%d)",
                     db->uri, db->DTL, db->PTL);
       return CMS_FAIL;
     }
 
-  if (db->PTL)  /* We have an open backend transaction that needs to be commited */  
+  if (db->PTL)  /* We have an open backend transaction that needs to be commited */
     {
       res = PQexec (db->conn, "COMMIT -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
@@ -234,10 +234,10 @@ dav_cms_rollback (dav_db * db)
   if ((!db) || (!db->conn))
       {
         db->DTL = db->PTL = OFF;
-        return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+        return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
                               "Fatal Error: no database connection set up!.");
       }
-  
+
   if ((db->DTL == OFF) && (db->PTL == OFF))
       {return NULL;}
 
@@ -248,31 +248,31 @@ dav_cms_rollback (dav_db * db)
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL,
 		    "[cms]: dav_cms_rollback for '%s' in weired transaction state",
                     db->uri);
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
                             "Fatal Error: weired transaction state during rollback!");;
     }
 
   if ((db->DTL == ON) &&(db->PTL == ON))
-    {	
+    {
       res = PQexec (dbh->dbh, "ROLLBACK -- property changes");
       if (!res || PQresultStatus (res) != PGRES_COMMAND_OK)
           {
               db->PTL = db->DTL = OFF;
               PQclear (res);
-              return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
-                                    "Fatal Error: Could not execute backend rollback:"); 
+              return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
+                                    "Fatal Error: Could not execute backend rollback:");
                                     /* " Database rollback result is %d\n"  */
                                     /* "Error Message '%s'", Pqresultstatus(res) , PQresultErrorMessage(res)); */
           }
       PQclear (res);
       db->DTL = db->PTL = OFF;
       return NULL;
-    }	
-  else	
-      {	
+    }
+  else
+      {
           db->PTL = db->PTL = OFF;
           return NULL;
-      }	
+      }
 }
 
 /*=========================================================[ DAV PROPS CALLBACKS ]==*/
@@ -284,12 +284,12 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
   dav_db *db;
 
   if (!dbh)
-    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0,
+    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
 			  "Fatal Error: no database connection set up.");
 
   /* really open database connection */
   if (dav_cms_db_connect (dbh) != CMS_OK)
-    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
+    return dav_new_error (p, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING, 0,
 			  "Error connecting to property database");
 
 
@@ -313,11 +313,11 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
           curi[len - 1] = '\0';
       }
       db->uri = curi;
-  } 
+  }
   else
   {
-      db->uri = apr_pstrdup(p, resource->uri); 
-  } 
+      db->uri = apr_pstrdup(p, resource->uri);
+  }
 
   /* NOTE: here we only indicate that we should be in a transaction.
    * The actual (database) transaction is only started the first time
@@ -326,7 +326,7 @@ dav_cms_db_open (apr_pool_t * p, const dav_resource * resource, int ro,
   db->DTL = ON;
   db->PTL = OFF;
 
-  *pdb = db;  
+  *pdb = db;
 #ifndef NDEBUG
   ap_log_error (APLOG_MARK, APLOG_INFO, 0, NULL,
 		"[cms]: Opening database '%s'", resource->uri);
@@ -345,7 +345,7 @@ dav_cms_db_close (dav_db * db)
   /*FIXME: is this a good place to commit? */
   if (dav_cms_commit (db) != CMS_OK)
     /* FIXME: how to raise an error ? */
-    (void) dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+    (void) dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			  "Error commiting transaction in property database\n"
 			  "Your operation might not be stored in the backend");
   /* FIXME: Just to keep compiler happy */
@@ -385,17 +385,17 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   tlen = PQescapeString (buffer, db->uri, tlen);
   turi = buffer;
   qlen += tlen;
-  
+
   qtempl = "SELECT DISTINCT namespace FROM facts WHERE uri = '%s'";
   qlen += strlen (qtempl);
   query = (char *) apr_palloc (db->pool, qlen);
   snprintf (query, qlen, qtempl, turi);
-  
+
   /* execute the database query and check return value */
   res = PQexec (db->conn, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			    "Fatal Error: datbase error during  property storage.");
     }
   ntuples = PQntuples (res);
@@ -414,7 +414,7 @@ dav_cms_db_define_namespaces (dav_db * db, dav_xmlns_info * xi)
   return NULL;
 }
 
-/* NEW INTERFACE 
+/* NEW INTERFACE
 
 PGresult *PQexecParams(PGconn *conn,
                        const char *command,
@@ -449,15 +449,15 @@ dav_cms_db_define_namespaces__new (dav_db * db, dav_xmlns_info * xi)
    */
   ntuples   = 0;
   params[0] = db->uri;
-  
+
   /* execute the database query and check return value */
 
   res = PQexecParams(db->conn, "SELECT DISTINCT namespace FROM facts WHERE uri = $1",
-                     1, NULL, params, NULL, NULL, 0); 
+                     1, NULL, params, NULL, NULL, 0);
 
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			    "Fatal Error: datbase error during  property operation.");
     }
   ntuples = PQntuples (res);
@@ -500,7 +500,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   if (!db->conn)
     {
       ap_log_error (APLOG_MARK, APLOG_ERR, 0, NULL, "CLOSED DATABASE");
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING, 0,
 			    "[CMS:FATAL] Trying to access closed database.");
     }
 
@@ -525,12 +525,12 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
 		    "[Passing DAV: request]");
       return NULL;
   }
-  
+
   ntuples = 0;
   qlen    = 0;
 
-  /** FIXME: the following code produces wrong URIs for collections 
-   * (missing  '/' at the end of the resource name). 
+  /** FIXME: the following code produces wrong URIs for collections
+   * (missing  '/' at the end of the resource name).
    */
   tlen = strlen (db->uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
@@ -561,7 +561,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   res = PQexec (db->conn, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			    "Fatal Error: datbase error during  property storage.");
     }
   ntuples = PQntuples (res);
@@ -585,7 +585,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
        *		      prefix, tag,
        *                      prefix, uri,
        *                      value, prefix, tag);
-       *                      
+       *
        */
 
       /* Honk: This is a hack we need to ensure proper namespace storage.  Iff
@@ -609,7 +609,7 @@ dav_cms_db_output_value (dav_db * db, const dav_prop_name * name,
   return NULL;
 }
 
-/* 
+/*
  * Here we get a chance too have a peek at all namespaces of an incomming
  * WebDAV request. We might need this to create a lookup table to emmit xml:ns
  * declarations during property serialisation.
@@ -642,14 +642,14 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 {
 
   /* FIXME: the following algorithm needs to be implemented:
-   * 
+   *
    * -# compare the namespace with the hash of namespaces we
    *    are interested in.
    * -# If it is found, store the property in the database,
    *    possibly overriding an older value (stored proc.).
    * -# If not, dispatch to the backend providers store function.
    */
-  
+
   PGresult *res;
   char *buffer;
   char *qtempl, *query;
@@ -659,12 +659,12 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
   size_t tlen;
   size_t qlen;
   size_t valsize = 0;
-   
-  /* NOTE: mod_dav should check for empty namespace itself 
-   * Check for invalid or zero-lenght namespace 
+
+  /* NOTE: mod_dav should check for empty namespace itself
+   * Check for invalid or zero-lenght namespace
    */
   if(name->ns==NULL || strlen(name->ns)==0) {
-       return dav_new_error(db->pool, HTTP_BAD_REQUEST, 0,
+    return dav_new_error(db->pool, HTTP_BAD_REQUEST, 0, 0,
 			    "Fatal Error: NULL namespace not allowed.");
   }
 
@@ -676,51 +676,51 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 
   if (!dbh)
     {
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_OPENING, 0,
 			    "Fatal Error: no database connection to store property.");
     }
 
   /* Storage needs explicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
-    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			  "Error entering transaction context in property database");
 
   /* ... end debugging */
 
-  /* convert the xml-branch value to its text representation 
+  /* convert the xml-branch value to its text representation
    *
    * Iff we have a structured value (we have at least one child) we store a
    * serialized full tree version. We need a full tree (i.e. a tree including
    * the property name tag) here to have an enclosing element to hold all
-   * neccessary namespace declarations. 
+   * neccessary namespace declarations.
    * NOTE: this implies some tragic changes to value output as well. See there.
    */
 
-  if (elem->first_child) {    
+  if (elem->first_child) {
       apr_xml_quote_elem(db->pool, (apr_xml_elem *) elem);
-      apr_xml_to_text (db->pool, elem, APR_XML_X2T_FULL_NS_LANG, 
+      apr_xml_to_text (db->pool, elem, APR_XML_X2T_FULL_NS_LANG,
                        mapping->namespaces, mapping->ns_map, (const char **) &value, &valsize);
 
   } else {
-      apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER, 
+      apr_xml_to_text (db->pool, elem, APR_XML_X2T_INNER,
                        NULL, 0, (const char **) &value, &valsize);
   }
 
   if (value) value[valsize] = (char) 0;
 
   /* From here on we collect the neccessary tokens, sql-escape them
-   * and record the token length to calculate the maximum length of 
+   * and record the token length to calculate the maximum length of
    * the query string.
    */
   qlen = 0;
-  
-  uri  = (char *) db->uri; 
+
+  uri  = (char *) db->uri;
   tlen = strlen (uri);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, uri, tlen);
   turi = buffer;
   qlen += tlen;
-  
+
   tlen = strlen (name->ns);
   buffer = (char *) apr_palloc (db->pool, 2 * (tlen + 1));
   tlen = PQescapeString (buffer, name->ns, tlen);
@@ -749,7 +749,7 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
       PQclear (res);
-      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+      return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			    "Fatal Error: datbase error during  property storage. (dav_cms_db_store)");
     }
   PQclear (res);
@@ -760,15 +760,15 @@ dav_cms_db_store (dav_db * db, const dav_prop_name * name,
 dav_error *
 dav_cms_db_remove (dav_db * db, const dav_prop_name * name)
 {
-  /* FIXME: how should we react if res.count <> 1? 
+  /* FIXME: how should we react if res.count <> 1?
    * We also need to do better error checking.
    */
 
   /* Removal needs expicit backend transactions */
   if (dav_cms_ensure_transaction (db) != CMS_OK)
-    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+    return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 			  "Error entering transaction context in property database");
-  
+
   if (dbh)
     {
       PGresult *res;
@@ -860,7 +860,7 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
   res = PQexec (dbh->dbh, query);
   if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
     {
-      dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC,
+      dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, DAV_ERR_PROP_EXEC, 0,
 		     "Fatal Error: datbase error during  property existance check.");
     }
   exists = PQntuples (res);
@@ -880,12 +880,12 @@ dav_cms_db_exists (dav_db * db, const dav_prop_name * name)
 /**
  * @function dav_cms_db_first_name
  *  Read properties for a URI from the database and build an
- *  
- * @param db 
+ *
+ * @param db
  *   The dav_db struct that holds a hash of all
  *   properties we provide.
  * @param pname
- *   This dav_prop_name struct should be filled with the 
+ *   This dav_prop_name struct should be filled with the
  *   name (and namespace) of the first property we provide.
  * @tip We are supposed to set both namespace and name to NULL
  *   to indicate that we are finished with all properties.
@@ -907,7 +907,7 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
 
 
       if (!dbh)
-	return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+	return dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
 			      "Fatal Error: not connected to database.");
 
       qlen = 0;
@@ -928,10 +928,10 @@ dav_cms_db_first_name (dav_db * db, dav_prop_name * pname)
       res = PQexec (dbh->dbh, query);
       if (!res || PQresultStatus (res) != PGRES_TUPLES_OK)
 	{
-	  dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0,
+	  dav_new_error (db->pool, HTTP_INTERNAL_SERVER_ERROR, 0, 0,
 			 "Fatal Error: datbase error during  property storage.");
 	}
-      
+
       /* return the first property */
       pname->ns   = PQgetvalue (db->cursor, db->pos, 0);
       pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
@@ -982,7 +982,7 @@ dav_cms_db_next_name (dav_db * db, dav_prop_name * pname)
         /*FIXME: do we need to insert namespaces or their prefix here */
         pname->ns = PQgetvalue (db->cursor, db->pos, 0);
         pname->name = (const char *) PQgetvalue (db->cursor, db->pos, 1);
-      
+
         db->pos++;
     }
     return NULL;
@@ -1008,7 +1008,7 @@ dav_cms_db_apply_rollback (dav_db * db, dav_deadprop_rollback * rollback)
 }
 
 dav_error *
-dav_cms_copy_resource (const dav_resource *src, dav_resource *dst, 
+dav_cms_copy_resource (const dav_resource *src, dav_resource *dst,
                        int depth, dav_response **response)
 {
     ;
@@ -1018,13 +1018,13 @@ dav_error *
 dav_cms_move_resource (dav_resource *src, dav_resource *dst, dav_response **response)
 {
    /*  Here the following shold happen:
-     *  - Open transaction 
+     *  - Open transaction
      *  - Copy properties
      *    If this fails we can rollback the database and return an error.
      *    If this succeeds we call the backend remove callback.
      */
     ;
-    /* Iff the resource operation didn't return any errors we can 
+    /* Iff the resource operation didn't return any errors we can
      * commit the transaction now. Else we rollback and everything
      * is in it's prior state.
      */
@@ -1036,14 +1036,14 @@ dav_error *
 dav_cms_remove_resource (dav_resource *resource, dav_response **response)
 {
     /*  Here the following shold happen:
-     *  - Open transaction 
+     *  - Open transaction
      *  - Move properties
      *    If this fails we can rollback the database and return an
      *    error.
      *    If this succeeds we call the backend remove callback.
      */
     ;
-    /* Iff the resource operation didn't return any errors we can 
+    /* Iff the resource operation didn't return any errors we can
      * commit the transaction now. Else we rollback and everything
      * is in it's prior state.
      */
@@ -1064,13 +1064,13 @@ static dav_error *dav_cms_search_resource(request_rec * r, dav_response ** res)
      *  req.filename = 'proxy:%s' % req.uri
      *  req.handler = 'proxy-server'
      */
-    
+
     r->proxyreq = PROXYREQ_REVERSE;
     r->uri      = "http://localhost:9999/";
     r->filename = "proxy:http://localhost:9999/";
     r->handler  = "proxy-server";
     ap_log_error (APLOG_MARK, APLOG_DEBUG, 0, NULL, "%s request for %s", r->method, r->unparsed_uri);
-    return dav_new_error(r->pool, HTTP_BAD_REQUEST, 0, "Don't know how to handle SEARCH requests yet!");
+    return dav_new_error(r->pool, HTTP_BAD_REQUEST, 0, 0, "Don't know how to handle SEARCH requests yet!");
     // * FIXME: won't work since we can't proxy at such a late time in the request handling */
 }
 
@@ -1113,7 +1113,7 @@ dav_cms_lookup_docID(request_rec *r, const char* resURI, char** docID) {
         return -1;
     }
     if(!dbh->dbh) {
-        /* FIXME: we should factor this out into a 
+        /* FIXME: we should factor this out into a
          * call 'getConnection()' that'll either return an existing
          * connection or try to (re)connect.
          */
@@ -1126,16 +1126,16 @@ dav_cms_lookup_docID(request_rec *r, const char* resURI, char** docID) {
         }
         else {ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Database connection estalished");}
     }
-    
-    result = PQexecParams(dbh->dbh, 
-                          "SELECT value FROM FACTS WHERE uri = $1 AND namespace = 'http://namespaces.zeit.de/CMS/document' AND name = 'uuid'", 
+
+    result = PQexecParams(dbh->dbh,
+                          "SELECT value FROM FACTS WHERE uri = $1 AND namespace = 'http://namespaces.zeit.de/CMS/document' AND name = 'uuid'",
                           1, NULL, params, NULL, NULL, 0);
     if ((!result) || (PQresultStatus(result) != PGRES_TUPLES_OK)) {
         /* FIXME: do something useful here */
         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,  "[CMS] No result looking up DocID for %s", resURI);
         return -1;
     }
-    
+
     ntuples = PQntuples(result);
     switch (ntuples) {
     case 0:                     /* No DocID so far */
@@ -1155,9 +1155,9 @@ dav_cms_lookup_docID(request_rec *r, const char* resURI, char** docID) {
     return res;
 }
 
-/** Store a new DocID 
+/** Store a new DocID
  * We need an explict uri parameter (instead of using r->uri) for
- * copy operations where r points to the copy _source_! 
+ * copy operations where r points to the copy _source_!
  */
 
 int
@@ -1175,7 +1175,7 @@ dav_cms_store_docID(request_rec *r, const char* uri, const char *docID) {
         return -1;
     }
     if(!dbh->dbh) {
-        /* FIXME: we should factor this out into a 
+        /* FIXME: we should factor this out into a
          * call 'getConnection()' that'll either return an existing
          * connection or try to (re)connect.
          */
@@ -1189,7 +1189,7 @@ dav_cms_store_docID(request_rec *r, const char* uri, const char *docID) {
         else {ap_log_error(APLOG_MARK, APLOG_DEBUG, 0, NULL, "Database connection estalished");}
     }
 
-    result = PQexecParams(dbh->dbh, 
+    result = PQexecParams(dbh->dbh,
                           "SELECT assert($1, 'http://namespaces.zeit.de/CMS/document', 'uuid', $2)",
                           2, NULL, params, NULL, NULL, 0);
     if ((!result) || (PQresultStatus(result) != PGRES_TUPLES_OK)) { /* FIXME: this leaks! */
@@ -1198,7 +1198,7 @@ dav_cms_store_docID(request_rec *r, const char* uri, const char *docID) {
         res = -1;
     }
     else res = OK;
-  
+
     if (result) PQclear(result);
     return res;
 }
@@ -1207,7 +1207,7 @@ const char*
 dav_cms_generate_uuid(request_rec *r) {
     uuid_t uuid;
     char   scratch[40];
-    
+
     uuid_generate(uuid);
     uuid_unparse_lower(uuid, scratch);
     return apr_psprintf(r->pool, "{urn:uuid:%s}", scratch);
@@ -1228,7 +1228,7 @@ dav_cms_ensure_uuid(request_rec *r){
     /* Only handle PUT/MKCOL requests */
     if ((M_PUT   != r->method_number) &
         (M_MKCOL != r->method_number)) return DECLINED;
-    
+
     /* Here we need to strip a trailing '/' from collection resource
        URIs.  Ideally we would just change r->uri in place but
        unfortunately mod_dav proper (ha) MKCOL handler expects a
@@ -1236,7 +1236,7 @@ dav_cms_ensure_uuid(request_rec *r){
     {
         resURI = apr_pstrdup(r->pool, r->uri);
         int   len  = strlen(resURI);
-        
+
         if (len > 1 && resURI[len - 1] == '/') {
             resURI[len - 1] = '\0';
         }
@@ -1245,26 +1245,26 @@ dav_cms_ensure_uuid(request_rec *r){
     /* Test if this resource already has an UUID */
     /* FIXME: THINK-BUG LURKS HERE!              */
     res = dav_cms_lookup_docID(r, resURI, &docID);
-    
+
     if (res) {
         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,  "[CMS] Error looking up DocID for %s (%d)", r->uri, res);
         return res;        /* FIXME: what to return here? */
     }
-    
+
     docIDheader = apr_table_get(r->headers_in, "Zeit-DocID");
 
     if (docID) {
         if (docIDheader) {
             if (strcmp(docIDheader, docID)) {
-                ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
-                             "[CMS] Header docID %s for resource %s conflicts with existing ID %s", 
+                ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
+                             "[CMS] Header docID %s for resource %s conflicts with existing ID %s",
                              docIDheader, resURI, docID);
                 goto conflict;
             }
         }
         goto set_docid;
     }
-    
+
     /*    If a UUID was given check for uniqueness          */
     /*    If unique assign it to the resource an return OK  */
     /*    If no UUID header is given, generate an UUID      */
@@ -1275,20 +1275,19 @@ dav_cms_ensure_uuid(request_rec *r){
     if (res) {
         goto error;
     }
-    
-    
+
+
  set_docid:
     apr_table_setn(r->headers_out, "Zeit-DocID", docID);
     return OK;
-    
-    
+
+
  conflict:
     /* In case the resource already exists ... */
     // set appropriate error message ...
     return HTTP_CONFLICT;       /* or maybe HTTP_PRECONDITION_FAILED */
 
-    
+
  error:
     return HTTP_INTERNAL_SERVER_ERROR;
 }
-

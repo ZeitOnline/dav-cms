@@ -19,15 +19,15 @@ HEADERS  = $(srcdir)/dav_cms_monitor.h \
 
 
 INCLUDES = `$(APR_CONFIG) --includes` \
-           -I`$(PG_CONFIG) --includedir` -I.
+           -I`$(PG_CONFIG) --includedir` -I$(builddir)
 
 LDFLAGS  = `$(APR_CONFIG) --link-ld --libs` \
-           -L `$(PG_CONFIG) --libdir` -lpq @DAV_CMS_LIBS@
+           -L`$(PG_CONFIG) --libdir` -lpq @DAV_CMS_LIBS@
 
 DESTDIR  = `$(APXS) -q LIBEXECDIR`
 
 all: $(SRC) $(HEADERS)
-	$(APXS) -I$(INCLUDES) $(LDFLAGS) -c $(SRC)
+	$(APXS) -c $(SRC) -I$(INCLUDES) $(LDFLAGS)
 
 install: .libs/mod_dav_cms.so
 	$(APXS) -i  -n 'mod_dav_cms' .libs/mod_dav_cms.so

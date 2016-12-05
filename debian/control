@@ -2,13 +2,13 @@ Source: mod-dav-cms
 Section: web
 Priority: optional
 Maintainer: R. Mattes <rm@seid-online.de>
-Build-Depends: debhelper (>= 4.0.0), libattr1-dev, apache2-prefork-dev (>= 2.0.50), uuid-dev, libpq-dev, libuuid1
+Build-Depends: debhelper (>= 9), libattr1-dev, apache2-dev (>= 2.0.50), uuid-dev, libpq-dev, libuuid1
 Standards-Version: 3.7.2
 
 Package: libapache2-mod-dav-cms
 Architecture: any
 Suggests: dav-cms-backend
-Depends: ${shlibs:Depends}, ${misc:Depends}, apache2.0-common | apache2.2-common
+Depends: ${shlibs:Depends}, ${misc:Depends}, apache2-data
 Description: Blah blah blah
  This is a module for the Apache HTTPD 2.2 which may be used in combination
  with the included mod_dav to provide a WebDAV enabled Content Management System.
@@ -18,6 +18,6 @@ Package: libapache2-mod-dav-cms-dbg
 Architecture: any
 Section: libdevel
 Suggests: dav-cms-backend
-Depends: libapache2-mod-dav-cms(= ${Source-Version}), ${shlibs:Depends}, ${misc:Depends}, apache2.0-common | apache2.2-common
+Depends: libapache2-mod-dav-cms(= ${Source-Version}), ${shlibs:Depends}, ${misc:Depends}, apache2-data
 Description: Debug symbols for libapache2-mod-dav-cms
  .

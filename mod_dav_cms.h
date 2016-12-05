@@ -33,8 +33,8 @@ extern "C" {
 
 
 
-  /** 
-   * Module specific error codes 
+  /**
+   * Module specific error codes
    */
   typedef enum {CMS_OK=0, CMS_FAIL} dav_cms_status_t;
 
@@ -56,7 +56,7 @@ extern "C" {
    * Configuration Handling
    */
 
-  
+
   /**
    * @struct dav_cms_server_conf
    * @brief  This struct holds per server configuration
@@ -66,7 +66,7 @@ extern "C" {
     char        *backend;              /**< The name of the backend provider.           */
     char        *dsn;                  /**< The database connection settings for this server */
   } dav_cms_server_conf;
-  
+
   /**
    * @struct dav_cms_dir_conf
    * @brief  This struct holds per directory configuration
@@ -76,7 +76,7 @@ extern "C" {
     int magic;
     /* void for now */
   } dav_cms_dir_conf;
-  
+
 
 
   /**
@@ -88,7 +88,7 @@ extern "C" {
    *
    * This function will install mod_dav_cms into mod_davs provider
    * table. The following steps are performed:
-   * 
+   *
    * -# it attempts to get a pointer to the backend
    *    provider that is responsible to handle all
    *    functions that we don't handle.
@@ -96,7 +96,7 @@ extern "C" {
    * -# if found, it will grab references to these
    *    functions and install them in our own provider
    *    hook table.
-   * 
+   *
    * -# finally the own functions are inserted into the
    *    hook table.
    *
@@ -109,13 +109,16 @@ extern "C" {
   /**
    * Module global data structures
    */
-  extern        dav_provider  dav_cms_provider;  
+  extern        dav_provider  dav_cms_provider;
   extern  const dav_provider *dav_backend_provider;
   extern        dav_cms_dbh  *dbh;
 
 
 int
 dav_cms_ensure_uuid(request_rec *r);
+
+int
+dav_cms_store_docID(request_rec *r, const char* uri, const char *docID);
 
 #ifdef __cplusplus
 }

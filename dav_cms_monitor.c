@@ -17,7 +17,7 @@
 
 // FIXME: just for now, we need a better way of doing this ...
 extern const char *dav_cms_generate_uuid(request_rec *r);
-extern dav_cms_store_docID(request_rec *r, const char *uri, const char *docID);
+extern int dav_cms_store_docID(request_rec *r, const char *uri, const char *docID);
 
 static char trigger_sql[] =
 "INSERT INTO triggers VALUES ($1, $2, $3)";
@@ -45,7 +45,7 @@ dav_cms_lookup_destination(request_rec *r)
 /* FIXME: this is only partially refactored code - we want to migrate
  * to the ap_dbd model of database connections*/
 
-static inline ensure_database ()
+static inline int ensure_database ()
 {
   if(!dbh)
     {

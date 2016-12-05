@@ -35,12 +35,7 @@ config.status: configure Makefile.in
 				--infodir=\$${prefix}/share/info \
 				--disable-dependency-tracking
 
-build: build-stamp all-versions
-
-all-versions: postgres-8.2 postgres-8.3
-
-postgres-%:
-	echo "Building for PostgeSQL-$*"
+build: build-stamp
 
 build-stamp:  config.status
 	dh_testdir
@@ -53,7 +48,7 @@ clean:
 	-make clean
 	dh_testdir
 	dh_testroot
-	rm -f build-stamp 
+	rm -f build-stamp
 
 	# Add here commands to clean up after the build process.
 	-$(MAKE) clean
@@ -65,12 +60,12 @@ ifneq "$(wildcard /usr/share/misc/config.guess)" ""
 endif
 
 
-	dh_clean 
+	dh_clean
 
 install: build
 	dh_testdir
 	dh_testroot
-	dh_clean -k 
+	dh_prep
 	dh_installdirs
 	dh_install
 
@@ -83,12 +78,12 @@ binary-indep: build install
 binary-arch: build install
 	dh_testdir
 	dh_testroot
-	dh_installchangelogs 
+	dh_installchangelogs
 	dh_installdocs
 	dh_installexamples
 #	dh_install
 #	dh_installmenu
-#	dh_installdebconf	
+#	dh_installdebconf
 #	dh_installlogrotate
 #	dh_installcron
 #	dh_installinfo
@@ -104,4 +99,4 @@ binary-arch: build install
 	dh_builddeb
 
 binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install 
+.PHONY: build clean binary-indep binary-arch binary install

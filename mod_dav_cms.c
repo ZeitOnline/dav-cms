@@ -2,43 +2,44 @@
  * Filespec: $Id$
  *
  * Filename:      mod_dav_cms.c
- * Author:        <rm@seid-online.de> 
+ * Author:        <rm@seid-online.de>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
  * as published by the Free Software Foundation; either version 2
  * of the License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
+ *
  */
 
-/* 
+/*
 **  mod_dav_cms.c -- Apache DAV provider module
 **
 ** =================================================================
 **    CONFIGURATION OPTIONS
 ** =================================================================
 **
-**  In the apache configuration file: 
-**   
+**  In the apache configuration file:
+**
 **  CMSBackend  dav backend module.
 **
 **  CMSdsn      database source for the cms module
 **
-**/ 
+**/
 
 #include <httpd.h>
 #include <http_log.h>
 #include <http_config.h>
 #include <http_protocol.h>
+#include <http_request.h>
 #include <apr.h>
 #include <apr_pools.h>
 #include <ap_config.h>
@@ -64,7 +65,7 @@ static volatile char ident_string[] = "$Id$";
 dav_cms_dbh *dbh;
 
 /* FIXME: needs to be visible to 'dav_cms_props.c'*/
-   
+
 const dav_provider *dav_backend_provider;
    dav_provider dav_cms_provider;
 
@@ -75,7 +76,7 @@ const dav_provider *dav_backend_provider;
    dav_cms_patch_provider(const char *newprov)
    {
       char *prov;
-   
+
       if (newprov)
       {
          prov = (char *) newprov;
@@ -84,12 +85,12 @@ const dav_provider *dav_backend_provider;
       {
          prov = DAV_DEFAULT_BACKEND;
       }
-   
+
       dav_backend_provider = NULL;
       dav_backend_provider = dav_lookup_provider(prov);
       if(!dav_backend_provider)
           {
-              ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
+              ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
                            "[CMS]: Did not find a sufficient backend DAV provider ('%s')!", DAV_DEFAULT_BACKEND);
               exit (0);
           }
@@ -105,7 +106,7 @@ const dav_provider *dav_backend_provider;
          dav_cms_provider.binding = dav_backend_provider->binding;   /* alias/link       */
       /* insert our functionality */
          dav_cms_provider.propdb  = &dav_cms_hooks_propdb;
-         dav_cms_provider.search  = &dav_cms_hooks_search;         
+         dav_cms_provider.search  = &dav_cms_hooks_search;
       }
    }
 
@@ -153,7 +154,7 @@ const dav_provider *dav_backend_provider;
  * @param plog       logging resource pool
  * @param ptemp      temporary resource pool
  * @param server_rec server record struct
- * 
+ *
  * Besides leaving our marks in the servers version string we try to
  * allocate memory to hold our database settings and a connection
  * handle.
@@ -162,35 +163,35 @@ const dav_provider *dav_backend_provider;
  * database related resources.
  */
    static int dav_cms_init(apr_pool_t *pchild,
-   apr_pool_t *plog, 
+   apr_pool_t *plog,
    apr_pool_t *ptemp,
    server_rec *server)
    {
       dav_cms_server_conf *conf;
-   
+
       ap_add_version_component(pchild, DAV_CMS_MODULE_NAME "/" DAV_CMS_VERSION " (Version: " SVN_ID ")");
-   
+
    /* FIXME: how do i get my hands on 'conf' */
       conf = (dav_cms_server_conf *)ap_get_module_config(server->module_config, &dav_cms_module);
       if(!conf)
 	printf("No configuration data found");
-   
+
    /* Allocate our database connection struct from the child pool ... */
-   
+
       if(!dbh)
 	dbh = (dav_cms_dbh *)apr_palloc(pchild, sizeof(dav_cms_dbh));
-   
+
       if(dbh)
       {
-         printf("DSN is: %s", conf->dsn); 
+         printf("DSN is: %s", conf->dsn);
          dbh->dsn = apr_pstrdup(pchild, conf->dsn);
          dbh->dbh = NULL;
-      } 
-      else 
+      }
+      else
       {
          exit(255);
       }
-   
+
       return OK;
    }
 
@@ -208,7 +209,7 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
    static void *dav_cms_create_server_conf(apr_pool_t *p, server_rec *s)
    {
       dav_cms_server_conf *conf;
-   
+
       conf = (dav_cms_server_conf *)apr_palloc(p, sizeof(dav_cms_server_conf));
       if(!conf)
          return NULL;
@@ -218,32 +219,32 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
 
    static void *dav_cms_create_dir_conf(apr_pool_t *p, char *dir)
    {
-      dav_cms_dir_conf *conf; 
-   
+      dav_cms_dir_conf *conf;
+
       conf = (dav_cms_dir_conf *)apr_palloc(p, sizeof(dav_cms_dir_conf));
       return conf;
    }
 
    static void *dav_cms_merge_server_conf(apr_pool_t *p,
-   void *base, 
+   void *base,
    void *overrides)
    {
       return overrides;
    }
 
    static void *dav_cms_merge_dir_conf(apr_pool_t *p,
-   void *base, 
+   void *base,
    void *overrides)
    {
       return NULL;
    }
 
-   static const char *dav_cms_backend_cmd(cmd_parms  *cmd, 
+   static const char *dav_cms_backend_cmd(cmd_parms  *cmd,
    void       *config,
    const char *arg1)
    {
       dav_cms_server_conf *conf;
-   
+
    /* Find the server configuration */
       conf = (dav_cms_server_conf *)ap_get_module_config(cmd->server->module_config, &dav_cms_module);
    /*
@@ -252,7 +253,7 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
    * of the dav_cms_conf data.
    */
    #ifndef NDEBUG
-      ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
+      ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
          "[CMS]: Request to use '%s' as a backend DAV module.", arg1);
    #endif
       dav_backend_provider = NULL;
@@ -260,7 +261,7 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
       if(dav_backend_provider)
       {
       #ifndef NDEBUG
-         ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
+         ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
             "[CMS]: Found backend DAV provider!");
       #endif
          return NULL;
@@ -272,9 +273,9 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
          dav_cms_provider.binding = dav_backend_provider->binding;   /* ???              */
          return NULL;
       }
-      else 
+      else
       {
-         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, 
+         ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL,
             "[CMS]: Couldn't get backend DAV provider");
          return "\tCMSbackend: no DAV provider with that name.";
       }
@@ -284,13 +285,13 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
    void       *config,
    const char *arg1)
    {
-   
+
       dav_cms_server_conf *conf;
-   
+
       conf = (dav_cms_server_conf *)ap_get_module_config(cmd->server->module_config, &dav_cms_module);
       conf->dsn = apr_pstrdup(cmd->pool, arg1);
    #ifndef NDEBUG
-      ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL, 
+      ap_log_error(APLOG_MARK, APLOG_INFO, 0, NULL,
          "[CMS]: Request to use %s as a database server", conf->dsn);
    #endif
       return NULL;
@@ -299,14 +300,14 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
 
 
 
-/** 
+/**
  * The following is the usual Apache2 DSO module stuff.
  **/
 
    static const command_rec dav_cms_cmds[] =
    {
    /* per directory/location */
-   
+
    /* per server */
    AP_INIT_TAKE1("CMS:Backend", dav_cms_backend_cmd, NULL, RSRC_CONF,
    "specify the name of the DAV backend module to use "),
@@ -329,7 +330,7 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
 
 /* Dispatch list for API hooks */
    module AP_MODULE_DECLARE_DATA dav_cms_module = {
-   STANDARD20_MODULE_STUFF, 
+   STANDARD20_MODULE_STUFF,
    dav_cms_create_dir_conf,      /* create per-dir    config structures */
    dav_cms_merge_dir_conf,       /* merge  per-dir    config structures */
    dav_cms_create_server_conf,   /* create per-server config structures */
@@ -339,7 +340,7 @@ static void dav_cms_child_init(apr_pool_t *p, server_rec *s)
    };
 
 
-/* 
+/*
  * local variables:
  * eval: ()
  * end:
