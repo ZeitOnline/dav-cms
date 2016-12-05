@@ -1,3 +1,11 @@
+mod-dav-cms (0.4.1zeit6) unstable; urgency=medium
+
+  * Fixed builds against Apache2.4
+  * Removed generated files from version control
+  * Started work on out-of-tree builds
+
+ -- Ralf Mattes <rm@seid-online.de>  Mon, 05 Dec 2016 01:35:31 +0100
+
 mod-dav-cms (0.4.1zeit5) unstable; urgency=low
 
   * Fixed transaction handling and 'missing symbol' bug.
