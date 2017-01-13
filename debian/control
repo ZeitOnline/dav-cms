@@ -10,7 +10,7 @@ Architecture: any
 Suggests: dav-cms-backend
 Depends: ${shlibs:Depends}, ${misc:Depends}, apache2-data
 Description: Blah blah blah
- This is a module for the Apache HTTPD 2.2 which may be used in combination
+ This is a module for the Apache HTTPD 2.4 which may be used in combination
  with the included mod_dav to provide a WebDAV enabled Content Management System.
  .
 

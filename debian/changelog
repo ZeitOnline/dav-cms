@@ -1,3 +1,9 @@
+mod-dav-cms (0.4.1zeit7) unstable; urgency=medium
+
+  * Added (ugly) fix to force loading of mod_dav_fs.
+
+ -- Ralf Mattes <rm@seid-online.de>  Fri, 13 Jan 2017 17:08:37 +0100
+
 mod-dav-cms (0.4.1zeit6) unstable; urgency=medium
 
   * Fixed builds against Apache2.4
