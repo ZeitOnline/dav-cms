@@ -1,3 +1,9 @@
+mod-dav-cms (0.4.2zeit1) unstable; urgency=medium
+
+  * Added (beautiful) fix to delete properties of collections.
+
+ -- Ron Drongowski <ron.drongowski@zeit.de>  Wed, 10 May 2017 13:15:37 +0200
+
 mod-dav-cms (0.4.1zeit7) unstable; urgency=medium
 
   * Added (ugly) fix to force loading of mod_dav_fs.
