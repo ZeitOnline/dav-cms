@@ -346,8 +346,10 @@ dav_cms_delete_props(request_rec *r, const char *uri)
              * second query instead, deleting the property for the collection.
              **/
 
-            char uri_no_slash[sizeof(uri)-1];
-            strncpy(uri_no_slash, uri, strlen(uri)-1);
+            // new len = len - 1 (we strip one char) + 1 (\0 termination)
+            char uri_no_slash[strlen(uri)];
+            strncpy(uri_no_slash, uri, strlen(uri) - 1);
+            uri_no_slash[strlen(uri) - 1] = '\0';
             query_buffer = apr_psprintf (r->pool,
                                          "DELETE FROM facts WHERE "
                                          "uri='%s'", uri_no_slash);
