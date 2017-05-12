@@ -351,6 +351,7 @@ dav_cms_delete_props(request_rec *r, const char *uri)
             query_buffer = apr_psprintf (r->pool,
                                          "DELETE FROM facts WHERE "
                                          "uri='%s'", uri_no_slash);
+            res = PQexec(dbh->dbh, query_buffer);
 
             /* res = PQexecParams(dbh->dbh,  */
             /*                    "DELETE FROM facts "   */
