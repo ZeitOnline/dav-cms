@@ -337,6 +337,24 @@ dav_cms_delete_props(request_rec *r, const char *uri)
                                          "uri LIKE '%s%%'", uri);
             // ap_log_error(APLOG_MARK, APLOG_ERR, 0, NULL, "Will run following query:\n%s", query_buffer);
             res = PQexec(dbh->dbh, query_buffer);
+
+            /* We found out, that currently, the collection itself is _not_
+             * stored with a trailing slash in the DB.
+             * This leads to the fact, that the properties for the collection
+             * are not removed from the DB with the query above.
+             * To prevent a rather large data migration, we decided to fire a
+             * second query instead, deleting the property for the collection.
+             **/
+
+            // new len = len - 1 (we strip one char) + 1 (\0 termination)
+            char uri_no_slash[strlen(uri)];
+            strncpy(uri_no_slash, uri, strlen(uri) - 1);
+            uri_no_slash[strlen(uri) - 1] = '\0';
+            query_buffer = apr_psprintf (r->pool,
+                                         "DELETE FROM facts WHERE "
+                                         "uri='%s'", uri_no_slash);
+            res = PQexec(dbh->dbh, query_buffer);
+
             /* res = PQexecParams(dbh->dbh,  */
             /*                    "DELETE FROM facts "   */
             /*                    "WHERE uri LIKE ($1||'%')::text", */
